@@ -1,0 +1,6 @@
+{
+  "name": "GitGraph Studio",
+  "description": "An interactive, developer-centric toolkit to design, generate, and automate GitHub contribution graph pixel art.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
