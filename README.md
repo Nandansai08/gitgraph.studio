@@ -97,7 +97,9 @@ Found a design you love? Fork it, make it yours, and publish your own version.
 </td>
 </tr>
 </table>
+
 ### ⚡ GitHub Actions Integration
+
 Generate a GitHub Actions workflow that automates commits to produce your designed pattern on your contribution graph — **set it and forget it**.
 
 ![GitHub Actions Workflow Automation](./docs/screenshots/landing-page.png)
