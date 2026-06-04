@@ -28,4 +28,4 @@ jobs:
           fi
 
       - name: Run Linter
-        run: npx next lint
+        run: npm run lint
