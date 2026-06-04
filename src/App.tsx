@@ -32,6 +32,7 @@ import {
   Info, 
   Check, 
   ChevronDown, 
+  ChevronLeft,
   Github, 
   FolderLock, 
   User, 
@@ -40,12 +41,15 @@ import {
   CheckCircle,
   AlertTriangle,
   Lightbulb,
-  Upload
+  Upload,
+  Menu,
+  X
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { GALLERY_ITEMS } from './data/galleryData';
 import { PIXEL_FONTS } from './utils/pixelFonts';
 import { Tool, FontStyle, GalleryItem, GridPixel, SavedDesign, UserSession, UserSettings } from './types';
+import { buildGraphExport, parseGraphExport } from './utils/graphSchema';
 import { GraphPreview } from '@/components/graph-preview';
 import { Identicon } from '@/components/identicon';
 
@@ -159,6 +163,7 @@ const EMOJI_PATTERNS: Record<string, { name: string; visual: string; grid: numbe
 export default function App() {
   // Navigation Tabs with custom Settings, Profile, login pages support
   const [activeTab, setActiveTab] = useState<'editor' | 'gallery' | 'docs' | 'templates' | 'settings' | 'profile' | 'auth'>('editor');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Load User Session & Settings from localStorage with safety defaults
   const [userSession, setUserSession] = useState<UserSession>(() => {
@@ -204,6 +209,28 @@ export default function App() {
     localStorage.setItem('gitgraph_session', JSON.stringify(userSession));
   }, [userSession]);
 
+  // Fetch Auth.js session on mount to sync logged-in users
+  useEffect(() => {
+    fetch('/api/auth/session')
+      .then(res => {
+        if (res.ok) return res.json();
+        throw new Error('Failed to fetch session');
+      })
+      .then(data => {
+        if (data && data.user) {
+          setUserSession({
+            username: data.user.username || data.user.name || 'developer',
+            email: data.user.email || '',
+            name: data.user.name || '',
+            bio: data.user.bio || 'Developer at GitGraph Studio',
+            avatar: data.user.image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+            isLoggedIn: true
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('gitgraph_settings', JSON.stringify(userSettings));
   }, [userSettings]);
@@ -214,6 +241,42 @@ export default function App() {
 
   // Active Grid Data: represented as a Record keyed by `${w}_${d}` containing level 0-4
   const [pixels, setPixels] = useState<Record<string, number>>({});
+
+  // Start year for the contribution grid
+  const [startYear, setStartYear] = useState<number>(() => new Date().getFullYear());
+
+  // Custom start and end date ranges for painting lock
+  const [customStartDate, setCustomStartDate] = useState<string>(() => `${new Date().getFullYear()}-01-01`);
+  const [customEndDate, setCustomEndDate] = useState<string>(() => `${new Date().getFullYear()}-12-31`);
+  const [isDateLimitExpanded, setIsDateLimitExpanded] = useState<boolean>(true);
+
+
+
+  // Calculate the starting Sunday of the 53-week grid for the given year
+  const getGridStartDate = (year: number): Date => {
+    const jan1 = new Date(Date.UTC(year, 0, 1));
+    const dayOfWeek = jan1.getUTCDay(); // Sunday is 0, Monday is 1...
+    const gridStart = new Date(jan1);
+    gridStart.setUTCDate(jan1.getUTCDate() - dayOfWeek);
+    return gridStart;
+  };
+
+  // Convert grid coordinate (w, d) to its absolute Date object
+  const getCellDate = (w: number, d: number): Date => {
+    const gridStart = getGridStartDate(startYear);
+    const cellDate = new Date(gridStart);
+    cellDate.setUTCDate(gridStart.getUTCDate() + (w * 7 + d));
+    return cellDate;
+  };
+
+  // Check if a cell coordinate (w, d) falls inside the custom date range limits
+  const isCellInCustomRange = (w: number, d: number): boolean => {
+    const cellDate = getCellDate(w, d);
+    // Parse input date string as UTC
+    const start = new Date(customStartDate + 'T00:00:00Z');
+    const end = new Date(customEndDate + 'T23:59:59Z');
+    return cellDate >= start && cellDate <= end;
+  };
 
   // Saved Designs list for Profile visual dashboard
   const [sessionSavedDesigns, setSessionSavedDesigns] = useState<SavedDesign[]>([]);
@@ -240,6 +303,9 @@ export default function App() {
   const [designName, setDesignName] = useState<string>('Standard_Monorepo.json');
   const [isRenaming, setIsRenaming] = useState<boolean>(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // Hidden file input ref for JSON import
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   // Text Generator Accordion configs
   const [textInput, setTextInput] = useState<string>('HELLO');
@@ -525,6 +591,7 @@ export default function App() {
 
     setPixels(initialPixels);
     setDesignName(sanitizedName);
+    setStartYear(new Date().getFullYear());
     setUndoStack([]);
     setRedoStack([]);
     setIsNewFileDialogOpen(false);
@@ -577,12 +644,12 @@ export default function App() {
     triggerToast(`Successfully published "${rawTitle}" to Community Gallery! 🎉`, 'success');
   };
 
-  // Save Design inside localStorage
+  // Save Design inside localStorage (uses strict schema — no legacy year field)
   const handleSaveDesign = () => {
     try {
       const savedListJSON = localStorage.getItem('gitgraph_saved_designs');
       const savedList: SavedDesign[] = savedListJSON ? JSON.parse(savedListJSON) : [];
-      
+
       const pixelArray: GridPixel[] = Object.entries(pixels).map(([key, val]) => {
         const [w, d] = key.split('_').map(Number);
         return { w, d, level: val as number };
@@ -593,7 +660,9 @@ export default function App() {
         id: existingIndex !== -1 ? savedList[existingIndex].id : Math.random().toString(36).substr(2, 9),
         name: designName,
         pixels: pixelArray,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        startDate: customStartDate,
+        endDate: customEndDate,
       };
 
       if (existingIndex !== -1) {
@@ -610,36 +679,91 @@ export default function App() {
     }
   };
 
-  // Export design.json configuration file download
+  // Export design.json — strictly follows GraphExport schema (schemaVersion 1)
   const handleExportJson = () => {
-    const activePixels: GridPixel[] = Object.entries(pixels)
+    const activePixels = Object.entries(pixels)
       .filter(([_, level]) => (level as number) > 0)
       .map(([key, level]) => {
         const [w, d] = key.split('_').map(Number);
-        return { w, d, level: level as number };
+        return { w, d, level: level as 1 | 2 | 3 | 4 };
       });
 
-    const exportData = {
-      version: "1.0",
-      name: designName.replace('.json', ''),
-      dimensions: {
-        weeks: WEEKS,
-        days: DAYS
-      },
-      pixels: activePixels
-    };
+    const exportPayload = buildGraphExport({
+      name: designName.replace(/\.json$/i, ''),
+      description: '',
+      author: userSession.isLoggedIn ? userSession.username : '',
+      startDate: customStartDate,
+      endDate: customEndDate,
+      weeks: WEEKS,
+      days: DAYS,
+      pixels: activePixels,
+    });
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = designName;
+    link.download = designName.endsWith('.json') ? designName : `${designName}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    triggerToast(`Exported "${designName}" download complete!`, 'success');
+    triggerToast(`Exported "${designName}" — schema v1 ✓`, 'success');
+  };
+
+  // Import design from a .json file — validates against schemaVersion 1
+  const handleImportJson = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      if (!text) {
+        triggerToast('Import failed: empty file.', 'error');
+        return;
+      }
+
+      const result = parseGraphExport(text);
+
+      if (!result.success || !result.data) {
+        const firstError = result.errors?.[0] ?? 'Unknown validation error.';
+        // Detect schema version mismatch specifically
+        if (firstError.includes('schemaVersion')) {
+          triggerToast('Unsupported schema version. Only schemaVersion 1 is accepted.', 'error');
+        } else {
+          triggerToast(`Import failed: ${firstError}`, 'error');
+        }
+        console.error('Import validation errors:', result.errors);
+        return;
+      }
+
+      const graph = result.data;
+
+      // Load pixels into editor state
+      const newPixels: Record<string, number> = {};
+      graph.pixels.forEach(p => {
+        newPixels[`${p.w}_${p.d}`] = p.level;
+      });
+
+      setPixels(newPixels);
+      setDesignName(
+        graph.metadata.name.endsWith('.json')
+          ? graph.metadata.name
+          : `${graph.metadata.name}.json`
+      );
+      setCustomStartDate(graph.startDate);
+      setCustomEndDate(graph.endDate);
+      const yr = parseInt(graph.startDate.split('-')[0]);
+      if (!isNaN(yr)) setStartYear(yr);
+      setUndoStack([]);
+      setRedoStack([]);
+      setActiveTab('editor');
+
+      triggerToast(`Imported "${graph.metadata.name}" — ${graph.pixels.length} cells loaded ✓`, 'success');
+    };
+    reader.onerror = () => {
+      triggerToast('Import failed: could not read file.', 'error');
+    };
+    reader.readAsText(file);
   };
 
   // Load a Saved Design or Gallery template directly into working canvas
@@ -784,6 +908,7 @@ export default function App() {
   // Standard Smart Flood Fill engine
   const runSmartFloodFill = (startW: number, startD: number, targetLvl: number) => {
     const key = `${startW}_${startD}`;
+    if (!isCellInCustomRange(startW, startD)) return;
     const startLvl = pixels[key] || 0;
     if (startLvl === targetLvl) return;
 
@@ -811,7 +936,7 @@ export default function App() {
       ];
 
       for (const [nw, nd] of directions) {
-        if (nw >= 0 && nw < WEEKS && nd >= 0 && nd < DAYS) {
+        if (nw >= 0 && nw < WEEKS && nd >= 0 && nd < DAYS && isCellInCustomRange(nw, nd)) {
           const adjKey = `${nw}_${nd}`;
           const adjLvl = pixels[adjKey] || 0;
           if (adjLvl === startLvl && !visited.has(adjKey)) {
@@ -828,6 +953,7 @@ export default function App() {
   // Drawing Interaction handlers (MouseDown / MouseEnter for dragging support)
   const handleCellInteraction = (w: number, d: number, interaction: 'down' | 'enter') => {
     const coordKey = `${w}_${d}`;
+    if (!isCellInCustomRange(w, d)) return;
     
     if (interaction === 'down') {
       setIsMouseDown(true);
@@ -875,6 +1001,7 @@ export default function App() {
       const nextPixels = { ...pixels };
       drawnPoints.forEach(p => {
         const k = `${p.w}_${p.d}`;
+        if (!isCellInCustomRange(p.w, p.d)) return;
         if (activeIntensity === 0) {
           delete nextPixels[k];
         } else {
@@ -931,12 +1058,20 @@ export default function App() {
     }
   }, [isRenaming]);
 
-  // Calculate stats values
+  // Calculate stats values (filtered within the custom start & end date range)
   const countIntensity = (lvl: number) => {
-    return Object.values(pixels).filter(val => (val as number) === lvl).length;
+    return Object.entries(pixels).filter(([key, val]) => {
+      if ((val as number) !== lvl) return false;
+      const [w, d] = key.split('_').map(Number);
+      return isCellInCustomRange(w, d);
+    }).length;
   };
 
-  const countTotalActiveDays = Object.values(pixels).filter(val => (val as number) > 0).length;
+  const countTotalActiveDays = Object.entries(pixels).filter(([key, val]) => {
+    if ((val as number) === 0) return false;
+    const [w, d] = key.split('_').map(Number);
+    return isCellInCustomRange(w, d);
+  }).length;
   
   // Weights average calculation for Estimated commits
   const calculatedCommitsCount = 
@@ -1423,91 +1558,113 @@ export default function App() {
       </AnimatePresence>
 
       {/* SideNavBar Menu column */}
-      <nav className="fixed left-0 top-0 h-full w-[260px] bg-[#121419]/98 border-r border-white/10 flex flex-col z-40 backdrop-blur-xl">
-        <div className="p-6 border-b border-white/10 flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-[#39d353] stroke-[1.5]" stroke="currentColor">
+      <nav 
+        style={{ width: isSidebarCollapsed ? '86px' : '260px' }}
+        className="fixed left-0 top-0 h-full bg-[#121419]/98 border-r border-white/10 flex flex-col z-40 backdrop-blur-xl transition-[width] duration-300 ease-out"
+      >
+        <div className={`p-6 border-b border-white/10 flex flex-col gap-3 ${isSidebarCollapsed ? 'items-center' : ''}`}>
+          <div className={`flex items-center gap-2 ${isSidebarCollapsed ? 'justify-center w-full' : 'w-full'}`}>
+            <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-[#39d353] stroke-[1.5] shrink-0" stroke="currentColor">
               <rect x="2" y="2" width="7" height="7" rx="1" fill="#0e4429" stroke="#39d353" />
               <rect x="15" y="2" width="7" height="7" rx="1" fill="#006d32" stroke="#26a641" />
               <rect x="2" y="15" width="7" height="7" rx="1" fill="#26a641" stroke="#39d353" strokeDasharray="1 1" />
               <circle cx="18" cy="18" r="3.5" fill="#39d353" />
             </svg>
-            <span className="text-[9px] uppercase tracking-[0.2em] text-[#39d353] font-bold font-mono">
-              Reimagined Pro
-            </span>
+            {!isSidebarCollapsed && (
+              <span className="text-[9px] uppercase tracking-[0.2em] text-[#39d353] font-bold font-mono">
+                Reimagined Pro
+              </span>
+            )}
           </div>
-          <div className="text-xl font-bold tracking-tighter uppercase italic font-serif text-white mt-1">
-            GitGraph <span className="font-extralight not-italic text-sm text-white/50 tracking-[0.1em]">Studio</span>
+          <div className={`flex items-center gap-3 ${isSidebarCollapsed ? 'justify-center w-full' : 'w-full'}`}>
+            {!isSidebarCollapsed && (
+              <div className="text-xl font-bold tracking-tighter uppercase italic font-serif text-white min-w-0">
+                GitGraph <span className="font-extralight not-italic text-sm text-white/50 tracking-[0.1em]">Studio</span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed((value) => !value)}
+              className={`flex h-10 w-10 shrink-0 items-center justify-center border border-white/10 bg-white/5 text-white hover:bg-white/10 hover:border-white/20 transition-colors ${isSidebarCollapsed ? '' : 'ml-auto'}`}
+              aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {isSidebarCollapsed ? (
+                <Menu className="w-4 h-4 text-[#39d353]" />
+              ) : (
+                <ChevronLeft className="w-4 h-4 text-gray-400" />
+              )}
+            </button>
           </div>
         </div>
 
         {/* Tab links wrapper */}
-        <div className="flex-1 py-8 flex flex-col gap-1 px-4">
+        <div className={`flex-1 py-8 flex flex-col gap-1 ${isSidebarCollapsed ? 'px-2' : 'px-4'}`}>
           <button 
             id="editor-tab-btn"
             onClick={() => setActiveTab('editor')}
-            className={`flex items-center gap-3.5 px-4 py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
+            className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-3.5 px-4'} py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
               activeTab === 'editor' 
                 ? 'text-white bg-white/5 border-l-2 border-white font-bold' 
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <Edit3 className={`w-4 h-4 ${activeTab === 'editor' ? 'text-white' : 'text-gray-400'}`} />
-            <span>Editor</span>
+            {!isSidebarCollapsed && <span>Editor</span>}
           </button>
 
           <button 
             id="gallery-tab-btn"
             onClick={() => setActiveTab('gallery')}
-            className={`flex items-center gap-3.5 px-4 py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
+            className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-3.5 px-4'} py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
               activeTab === 'gallery' 
                 ? 'text-white bg-white/5 border-l-2 border-white font-bold' 
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <Grid3X3 className={`w-4 h-4 ${activeTab === 'gallery' ? 'text-white' : 'text-gray-400'}`} />
-            <span>Gallery</span>
+            {!isSidebarCollapsed && <span>Gallery</span>}
           </button>
 
           <button 
             id="docs-tab-btn"
             onClick={() => setActiveTab('docs')}
-            className={`flex items-center gap-3.5 px-4 py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
+            className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-3.5 px-4'} py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
               activeTab === 'docs' 
                 ? 'text-white bg-white/5 border-l-2 border-white font-bold' 
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <FileText className={`w-4 h-4 ${activeTab === 'docs' ? 'text-white' : 'text-gray-400'}`} />
-            <span>Documentation</span>
+            {!isSidebarCollapsed && <span>Documentation</span>}
           </button>
 
           <button 
             id="templates-tab-btn"
             onClick={() => setActiveTab('templates')}
-            className={`flex items-center gap-3.5 px-4 py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
+            className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-3.5 px-4'} py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
               activeTab === 'templates' 
                 ? 'text-white bg-white/5 border-l-2 border-white font-bold' 
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <GitBranch className={`w-4 h-4 ${activeTab === 'templates' ? 'text-white' : 'text-gray-400'}`} />
-            <span>Templates</span>
+            {!isSidebarCollapsed && <span>Templates</span>}
           </button>
         </div>
 
         {/* Footer info blocks */}
-        <div className="p-4 border-t border-white/5 flex flex-col gap-1 px-4 text-left">
+        <div className={`p-4 border-t border-white/5 flex flex-col gap-1 ${isSidebarCollapsed ? 'px-2' : 'px-4'} text-left`}>
           <button 
             onClick={() => setActiveTab('settings')}
-            className={`flex items-center gap-3.5 px-4 py-2.5 rounded-none text-xs uppercase tracking-wider font-semibold transition-colors text-left w-full ${
+            className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-3.5 px-4'} py-2.5 rounded-none text-xs uppercase tracking-wider font-semibold transition-colors text-left w-full ${
               activeTab === 'settings' 
                 ? 'text-white bg-white/5 border-l-2 border-white' 
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <Settings className="w-4 h-4" />
-            <span>Settings</span>
+            {!isSidebarCollapsed && <span>Settings</span>}
           </button>
           
           <button 
@@ -1515,10 +1672,10 @@ export default function App() {
               const helpMsg = "GitGraph Studio v1.2.0 • For assistance, view our Documentation or reach out to support@gitgraph-studio.io.";
               triggerToast(helpMsg, 'info');
             }}
-            className="flex items-center gap-3.5 px-4 py-2.5 rounded-none text-xs uppercase tracking-wider font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-left w-full"
+            className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-3.5 px-4'} py-2.5 rounded-none text-xs uppercase tracking-wider font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-left w-full`}
           >
-            <HelpCircle className="w-4 h-4 text-gray-400" />
-            <span>Support</span>
+            <HelpCircle className="w-4 h-4 text-gray-400 shrink-0" />
+            {!isSidebarCollapsed && <span>Support</span>}
           </button>
 
           {/* Dynamic Active User Profile Widget */}
@@ -1553,7 +1710,10 @@ export default function App() {
       </nav>
 
       {/* Main App Workspace Canvas */}
-      <div className="flex-1 pl-[260px] flex flex-col h-full bg-[#0f1115] relative overflow-hidden z-10">
+      <div 
+        style={{ paddingLeft: isSidebarCollapsed ? '86px' : '260px' }}
+        className="flex-1 flex flex-col h-full bg-[#0f1115] relative overflow-hidden z-10 transition-[padding-left] duration-300 ease-out"
+      >
         
         {/* Background Editorial Graphic Decorator skew element */}
         <div className="absolute top-0 right-0 w-[450px] h-full bg-[#16181f]/60 -skew-x-6 transform translate-x-32 z-0 border-l border-white/5 pointer-events-none" />
@@ -1562,7 +1722,7 @@ export default function App() {
         <header className="h-14 border-b border-white/10 bg-[#121419]/90 backdrop-blur-md flex justify-between items-center px-6 z-30 sticky top-0 shrink-0">
           {activeTab === 'editor' ? (
             <>
-              <div className="flex items-center gap-4 z-10">
+              <div className="flex items-center gap-4 z-10 min-w-0 overflow-hidden">
                 {/* Design Name Editor section */}
                 <div className="flex items-center gap-2 group cursor-pointer py-1 px-2.5 hover:bg-white/5 rounded-none border border-transparent hover:border-white/5 transition-all">
                   <FileText className="w-4 h-4 text-gray-400" />
@@ -1604,7 +1764,32 @@ export default function App() {
                   <span>New File</span>
                 </button>
 
+                {/* Hidden file input for JSON import */}
+                <input
+                  ref={importFileRef}
+                  type="file"
+                  accept=".json,application/json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImportJson(file);
+                    e.target.value = '';
+                  }}
+                />
+
+                {/* Import JSON design button */}
+                <button
+                  id="import-btn"
+                  onClick={() => importFileRef.current?.click()}
+                  className="flex items-center gap-1.5 py-1.5 px-3 bg-[#181d28]/80 hover:bg-white/5 border border-white/10 hover:border-white/20 text-[10px] uppercase font-mono tracking-wider font-semibold text-[#c7c4d7] hover:text-white transition-all rounded-none cursor-pointer"
+                  title="Import a schemaVersion 1 .json design file"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#39d353]" />
+                  <span>Import</span>
+                </button>
+
                 <div className="h-4 w-[1px] bg-white/10" />
+
 
                 {/* Undo Stack and Redo stack controls */}
                 <div className="flex items-center gap-1.5">
@@ -1638,7 +1823,7 @@ export default function App() {
               </div>
 
               {/* Quick Stats Scale and Actions */}
-              <div className="flex items-center gap-3 z-10 flex-wrap">
+              <div className="flex items-center gap-3 z-10 shrink-0">
                 
                 {/* Scale Zoom Controls */}
                 <div className="flex items-center gap-2 text-gray-400 bg-[#0f1115] border border-white/10 rounded-none px-2.5 py-1 text-xs select-none">
@@ -1653,8 +1838,8 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Local Workspace Cluster */}
-                <div className="flex items-center gap-1.5 bg-[#161a22]/80 border border-white/10 p-1 rounded-none flex-wrap">
+                {/* Local Workspace Cluster — layout: DRAFT: [Save] [Export] | [Publish] */}
+                <div className="flex items-center gap-1.5 bg-[#161a22]/80 border border-white/10 p-1 rounded-none shrink-0">
                   <span className="text-[8px] uppercase tracking-wider text-gray-500 font-mono font-bold px-1.5 select-none hidden md:inline">Draft:</span>
                   <button 
                     id="save-btn"
@@ -1670,7 +1855,7 @@ export default function App() {
                     id="export-btn"
                     onClick={handleExportJson}
                     className="px-2.5 py-1 text-[10px] font-mono font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all flex items-center gap-1.5 cursor-pointer rounded-none border border-white/5 bg-[#0f1115]/50"
-                    title="Download model.json file to local storage disk"
+                    title="Download schemaVersion 1 compliant .json design file"
                   >
                     <Download className="w-3 h-3 text-gray-400 shrink-0" />
                     <span>Export</span>
@@ -1840,7 +2025,7 @@ export default function App() {
                 </div>
 
                 {/* MAIN GRID BOARD CANVAS VIEWPORT */}
-                <div className="flex-1 bg-transparent flex flex-col items-center justify-center p-8 overflow-auto z-10">
+                <div className="flex-1 bg-transparent flex flex-col items-start min-[1600px]:items-center justify-center p-8 overflow-auto z-10">
                   
                   {/* Dynamic Scaling Grid Frame */}
                   <div 
@@ -1848,13 +2033,24 @@ export default function App() {
                     className="bg-[#121419]/90 border border-white/10 rounded-none p-6 shadow-[0_24px_50px_rgba(0,0,0,0.5)] backdrop-blur-md transition-transform duration-200 z-10"
                   >
                     
-                    {/* Months header tag */}
-                    <div className="flex text-[10px] font-mono text-gray-400 mb-2.5 pl-[38px] select-none uppercase tracking-[0.12em] font-semibold">
-                      {months.map((m, idx) => (
-                        <span key={idx} className="w-[45px] text-left shrink-0">
-                          {m}
-                        </span>
-                      ))}
+                    {/* Months header tag with absolute offsets mapped precisely to starting weeks of each month */}
+                    <div className="relative h-5 text-[10px] font-mono text-gray-400 mb-2.5 select-none uppercase tracking-[0.12em] font-semibold w-full">
+                      {months.map((m, idx) => {
+                        const startWeeks = [0, 4, 8, 13, 17, 21, 26, 30, 34, 39, 43, 47];
+                        const startWeek = startWeeks[idx];
+                        // 36px represents Mon/Wed/Fri row label width (w-7 is 28px) + gap-2 (8px)
+                        // Each week represents 14px width + 4px gap = 18px total column width
+                        const leftOffset = 36 + (startWeek * 18);
+                        return (
+                          <span 
+                            key={idx} 
+                            className="absolute text-left shrink-0"
+                            style={{ left: `${leftOffset}px` }}
+                          >
+                            {m}
+                          </span>
+                        );
+                      })}
                     </div>
 
                     {/* Left Days Label + Core Weeks Matrix container */}
@@ -1874,10 +2070,12 @@ export default function App() {
                             {Array.from({ length: DAYS }).map((_, d) => {
                               const key = `${w}_${d}`;
                               let level = pixels[key] || 0;
+                              const isCellAllowed = isCellInCustomRange(w, d);
+                              const formattedDate = getCellDate(w, d).toISOString().split('T')[0];
 
                               // Calculate preview modifications if dragging in straight shape mode
                               const isShapePreviewing = activeTool === 'shape' && isMouseDown && dragStartPoint && dragEndPoint;
-                              if (isShapePreviewing) {
+                              if (isShapePreviewing && isCellAllowed) {
                                 const shapePoints = getBresenhamPoints(
                                   dragStartPoint.w, 
                                   dragStartPoint.d, 
@@ -1890,23 +2088,28 @@ export default function App() {
                                 }
                               }
 
-                              const cellColor = getColorHex(level);
+                              const finalCellColor = isCellAllowed ? getColorHex(level) : '#0a0c10';
 
                               return (
                                 <div 
                                   key={d}
                                   onMouseDown={() => handleCellInteraction(w, d, 'down')}
                                   onMouseEnter={() => handleCellInteraction(w, d, 'enter')}
-                                  style={{ backgroundColor: cellColor }}
-                                  className={`w-3.5 h-3.5 rounded-none border hover:border-white hover:scale-110 cursor-crosshair transition-all duration-75 relative group ${
-                                    userSettings.gridBorders ? 'border-white/[0.04]' : 'border-transparent'
+                                  style={{ backgroundColor: finalCellColor }}
+                                  className={`w-3.5 h-3.5 rounded-none border transition-all duration-75 relative group ${
+                                    isCellAllowed 
+                                      ? `cursor-crosshair hover:border-white hover:scale-110 ${userSettings.gridBorders ? 'border-white/[0.04]' : 'border-transparent'}`
+                                      : 'border-transparent opacity-10 cursor-not-allowed select-none'
                                   }`}
-                                  title={`Week ${w + 1}, Day ${d === 0 ? 'Sunday' : d === 1 ? 'Monday' : d === 2 ? 'Tuesday' : d === 3 ? 'Wednesday' : d === 4 ? 'Thursday' : d === 5 ? 'Friday' : 'Saturday'}\nCommits: ${level === 4 ? '9+' : level === 3 ? '6-8' : level === 2 ? '3-5' : level === 1 ? '1-2' : '0'}`}
+                                  title={isCellAllowed 
+                                    ? `${formattedDate} (Wk ${w + 1}, ${d === 0 ? 'Sunday' : d === 1 ? 'Monday' : d === 2 ? 'Tuesday' : d === 3 ? 'Wednesday' : d === 4 ? 'Thursday' : d === 5 ? 'Friday' : 'Saturday'})\nCommits: ${level === 4 ? '9+' : level === 3 ? '6-8' : level === 2 ? '3-5' : level === 1 ? '1-2' : '0'}`
+                                    : `Locked (Outside customization range: ${formattedDate})`
+                                  }
                                 >
                                   {/* Micro tooltips on individual cells */}
                                   {userSettings.showTooltips && (
                                     <div className="absolute bottom-5 left-1/2 -translate-x-1/2 bg-black text-[#e5e7eb] border border-white/10 text-[10px] py-1 px-1.5 rounded-none hidden group-hover:block z-[999] whitespace-nowrap pointer-events-none font-mono">
-                                      Col {w}, Row {d} • Lvl {level}
+                                      {isCellAllowed ? `${formattedDate} • Lvl ${level}` : `Locked • ${formattedDate}`}
                                     </div>
                                   )}
                                 </div>
@@ -1919,12 +2122,17 @@ export default function App() {
 
                     {/* Bounded Legend footer elements */}
                     <div className="flex justify-between items-center mt-5 pt-3 border-t border-white/10 text-xs text-gray-400">
-                      <a 
-                        onClick={() => setActiveTab('docs')}
-                        className="hover:text-white hover:underline font-medium text-white transition-all cursor-pointer flex items-center gap-1 font-serif italic"
-                      >
-                        Learn how we map contributions
-                      </a>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-[10px] font-bold text-[#39d353] border border-[#39d353]/20 bg-[#39d353]/5 px-2 py-0.5 select-none rounded-none">
+                          {startYear}
+                        </span>
+                        <a 
+                          onClick={() => setActiveTab('docs')}
+                          className="hover:text-white hover:underline font-medium text-white transition-all cursor-pointer flex items-center gap-1 font-serif italic"
+                        >
+                          Learn how we map contributions
+                        </a>
+                      </div>
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono text-[10px]">Less</span>
                         <div className="w-3 h-3 rounded-none border border-white/10" style={{ backgroundColor: getColorHex(0) }} />
@@ -2131,6 +2339,154 @@ export default function App() {
                     )}
                   </div>
 
+                  {/* Date Range Limit accordion section */}
+                  <div className="border-b border-white/10 bg-[#121419]/50">
+                    <div 
+                      onClick={() => setIsDateLimitExpanded(!isDateLimitExpanded)}
+                      className="flex justify-between items-center p-4 hover:bg-white/5 cursor-pointer transition-colors select-none font-serif italic text-sm text-[#e5e7eb]"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="text-[#39d353]">📅</span>
+                        <span>Date Range Limit</span>
+                      </span>
+                      <ChevronDown className={`w-4 h-4 text-[#c7c4d7] transition-transform duration-200 ${isDateLimitExpanded ? '' : '-rotate-90'}`} />
+                    </div>
+
+                    {isDateLimitExpanded && (
+                      <div className="px-4 pb-5 flex flex-col gap-4 animate-fade-in text-left">
+                        <p className="text-[10px] text-gray-400 leading-relaxed font-sans">
+                          Lock customization to a specific date range. Grid cells outside this range will be protected and unpaintable.
+                        </p>
+
+                        {/* Format hint banner */}
+                        <div className="flex items-center gap-1.5 bg-[#0f1115] border border-white/5 rounded-none px-2.5 py-1.5">
+                          <span className="text-[8px] font-mono text-[#39d353] font-bold uppercase tracking-widest select-none">Format:</span>
+                          <span className="text-[8px] font-mono text-gray-400 tracking-widest select-none">MM-DD-YYYY</span>
+                          <span className="ml-auto text-[8px] font-mono text-gray-600 select-none">e.g. 01-31-2025</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-[9px] uppercase tracking-wider text-gray-500 font-mono mb-1">Start Date</label>
+                            <input 
+                              type="date" 
+                              value={customStartDate}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val) {
+                                  setCustomStartDate(val);
+                                  // Auto-sync startYear to match the selected start date year
+                                  const yr = parseInt(val.split('-')[0]);
+                                  if (!isNaN(yr) && yr >= 1970 && yr <= 2100) {
+                                    setStartYear(yr);
+                                  }
+                                }
+                              }}
+                              className="w-full bg-[#161a22] border border-white/10 text-white text-xs px-2.5 py-1.5 rounded-none focus:border-white/40 focus:outline-none font-mono transition-colors"
+                              title="Format: MM-DD-YYYY (e.g. 01-01-2025)"
+                            />
+                            <span className="text-[8px] font-mono text-gray-600 mt-0.5 block">MM-DD-YYYY</span>
+                          </div>
+
+                          <div>
+                            <label className="block text-[9px] uppercase tracking-wider text-gray-500 font-mono mb-1">End Date</label>
+                            <input 
+                              type="date" 
+                              value={customEndDate}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val) setCustomEndDate(val);
+                              }}
+                              className="w-full bg-[#161a22] border border-white/10 text-white text-xs px-2.5 py-1.5 rounded-none focus:border-white/40 focus:outline-none font-mono transition-colors"
+                              title="Format: MM-DD-YYYY (e.g. 12-31-2025)"
+                            />
+                            <span className="text-[8px] font-mono text-gray-600 mt-0.5 block">MM-DD-YYYY</span>
+                          </div>
+                        </div>
+
+                        {/* Quick Presets */}
+                        <div className="flex flex-col gap-1.5">
+                          <label className="block text-[9px] uppercase tracking-widest text-gray-500 font-mono">Quick Presets</label>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            <button
+                              onClick={() => {
+                                setCustomStartDate(`${startYear}-01-01`);
+                                setCustomEndDate(`${startYear}-12-31`);
+                                triggerToast('Restricted to Full Year', 'info');
+                              }}
+                              className="py-1 px-1.5 bg-[#161a22] hover:bg-white/5 border border-white/10 hover:border-white/20 text-[9px] uppercase font-mono text-gray-300 font-bold transition-all rounded-none cursor-pointer text-center"
+                            >
+                              Reset
+                            </button>
+                            <button
+                              onClick={() => {
+                                setCustomStartDate(`${startYear}-01-01`);
+                                setCustomEndDate(`${startYear}-03-31`);
+                                triggerToast('Restricted to Q1 (Jan-Mar)', 'info');
+                              }}
+                              className="py-1 px-1.5 bg-[#161a22] hover:bg-white/5 border border-white/10 hover:border-white/20 text-[9px] uppercase font-mono text-gray-300 font-bold transition-all rounded-none cursor-pointer text-center"
+                            >
+                              Q1
+                            </button>
+                            <button
+                              onClick={() => {
+                                setCustomStartDate(`${startYear}-04-01`);
+                                setCustomEndDate(`${startYear}-06-30`);
+                                triggerToast('Restricted to Q2 (Apr-Jun)', 'info');
+                              }}
+                              className="py-1 px-1.5 bg-[#161a22] hover:bg-white/5 border border-white/10 hover:border-white/20 text-[9px] uppercase font-mono text-gray-300 font-bold transition-all rounded-none cursor-pointer text-center"
+                            >
+                              Q2
+                            </button>
+                            <button
+                              onClick={() => {
+                                setCustomStartDate(`${startYear}-07-01`);
+                                setCustomEndDate(`${startYear}-09-30`);
+                                triggerToast('Restricted to Q3 (Jul-Sep)', 'info');
+                              }}
+                              className="py-1 px-1.5 bg-[#161a22] hover:bg-white/5 border border-white/10 hover:border-white/20 text-[9px] uppercase font-mono text-gray-300 font-bold transition-all rounded-none cursor-pointer text-center"
+                            >
+                              Q3
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-1.5 mt-1">
+                            <button
+                              onClick={() => {
+                                setCustomStartDate(`${startYear}-10-01`);
+                                setCustomEndDate(`${startYear}-12-31`);
+                                triggerToast('Restricted to Q4 (Oct-Dec)', 'info');
+                              }}
+                              className="py-1 px-1.5 bg-[#161a22] hover:bg-white/5 border border-white/10 hover:border-white/20 text-[9px] uppercase font-mono text-gray-300 font-bold transition-all rounded-none cursor-pointer text-center"
+                            >
+                              Q4
+                            </button>
+                            <button
+                              onClick={() => {
+                                setCustomStartDate(`${startYear}-01-01`);
+                                setCustomEndDate(`${startYear}-06-30`);
+                                triggerToast('Restricted to First Half (Jan-Jun)', 'info');
+                              }}
+                              className="py-1 px-1.5 bg-[#161a22] hover:bg-white/5 border border-white/10 hover:border-white/20 text-[9px] uppercase font-mono text-gray-300 font-bold transition-all rounded-none cursor-pointer text-center"
+                            >
+                              H1
+                            </button>
+                            <button
+                              onClick={() => {
+                                setCustomStartDate(`${startYear}-07-01`);
+                                setCustomEndDate(`${startYear}-12-31`);
+                                triggerToast('Restricted to Second Half (Jul-Dec)', 'info');
+                              }}
+                              className="py-1 px-1.5 bg-[#161a22] hover:bg-white/5 border border-white/10 hover:border-white/20 text-[9px] uppercase font-mono text-gray-300 font-bold transition-all rounded-none cursor-pointer text-center"
+                            >
+                              H2
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Grid Canvas stats details dynamic info */}
                   <div className="border-b border-white/10 flex-1">
                     <div 
@@ -2143,12 +2499,21 @@ export default function App() {
 
                     {isStatsExpanded && (
                       <div className="px-4 pb-5 grid grid-cols-2 gap-3 animate-fade-in">
+
+                        {/* Active date range indicator */}
+                        <div className="col-span-2 bg-[#0a0d14] border border-[#39d353]/20 rounded-none px-3 py-2 flex items-center justify-between">
+                          <span className="text-[8px] uppercase tracking-widest font-mono font-bold text-[#39d353]/70">Range</span>
+                          <span className="text-[9px] font-mono text-gray-300 font-medium">
+                            {customStartDate} → {customEndDate}
+                          </span>
+                        </div>
+
                         <div className="bg-[#0f1115]/50 border border-white/10 rounded-none p-3.5 flex flex-col items-center justify-center text-center">
                           <span className="text-xl font-bold text-white tracking-tighter">
-                            {countTotalActiveDays > 0 ? '365' : '0'}
+                            {countTotalActiveDays}
                           </span>
                           <span className="text-[9px] uppercase tracking-[0.15em] font-semibold font-sans text-gray-500 mt-1">
-                            Total Days
+                            Active Days
                           </span>
                         </div>
 
@@ -2159,6 +2524,31 @@ export default function App() {
                           <span className="text-[9px] uppercase tracking-[0.15em] font-semibold font-sans text-gray-500 mt-1">
                             Est. Commits
                           </span>
+                        </div>
+
+                        {/* Starting Year input selection */}
+                        <div className="col-span-2 bg-[#0f1115]/50 border border-white/10 rounded-none p-3 flex items-center justify-between">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] uppercase tracking-[0.15em] font-semibold font-sans text-gray-400">
+                              Grid Year
+                            </span>
+                            <span className="text-[8px] font-mono text-gray-600">Auto-syncs with start date</span>
+                          </div>
+                          <input
+                            type="number"
+                            min="1970"
+                            max="2100"
+                            value={startYear}
+                            onChange={(e) => {
+                              const yr = parseInt(e.target.value) || new Date().getFullYear();
+                              setStartYear(yr);
+                              // Also sync the date range to the new year
+                              setCustomStartDate(`${yr}-01-01`);
+                              setCustomEndDate(`${yr}-12-31`);
+                            }}
+                            className="w-20 bg-black/40 border border-white/10 text-[#e5e7eb] text-xs font-mono text-center py-1 outline-none focus:border-white/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            title="Grid Starting Year — changing this resets the date range"
+                          />
                         </div>
 
                         {/* Intensity Breakdown Sub-chart lists */}
@@ -3041,6 +3431,18 @@ jobs:
                                         });
                                         setPixels(newGrid);
                                         setDesignName(record.name);
+                                        if (record.startDate) {
+                                          setCustomStartDate(record.startDate);
+                                          const yr = parseInt(record.startDate.split('-')[0]);
+                                          if (!isNaN(yr)) {
+                                            setStartYear(yr);
+                                          }
+                                        } else {
+                                          setStartYear(new Date().getFullYear());
+                                        }
+                                        if (record.endDate) {
+                                          setCustomEndDate(record.endDate);
+                                        }
                                         triggerToast(`Loaded "${record.name}" successfully`, 'success');
                                         setActiveTab('editor');
                                       }
