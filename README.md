@@ -4,88 +4,91 @@
 
 # GitGraph Studio
 
-**Design your GitHub contribution graph like a canvas.**
+### 🎨 Design, preview, and generate custom GitHub contribution graph art.
 
-[![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue?logo=typescript)](https://typescriptlang.org)
-[![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma)](https://prisma.io)
-[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase)](https://supabase.com)
-[![Auth.js](https://img.shields.io/badge/Auth.js-v5-purple)](https://authjs.dev)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+Create names, logos, symbols, and pixel art for your GitHub activity heatmap using an interactive visual editor.
 
-[Live Demo](https://gitgraph.studio) · [Report Bug](https://github.com/Nandansai08/gitgraph.studio/issues) · [Request Feature](https://github.com/Nandansai08/gitgraph.studio/issues)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=for-the-badge&logo=prisma)](https://prisma.io)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+
+[![CI](https://github.com/Nandansai08/gitgraph.studio/actions/workflows/build.yml/badge.svg)](https://github.com/Nandansai08/gitgraph.studio/actions/workflows/build.yml)
+[![GitHub stars](https://img.shields.io/github/stars/Nandansai08/gitgraph.studio?style=social)](https://github.com/Nandansai08/gitgraph.studio/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/Nandansai08/gitgraph.studio?style=social)](https://github.com/Nandansai08/gitgraph.studio/network/members)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
+
+[Live Demo](https://gitgraphstudio-f9hqfjbcaje4cyfj.centralindia-01.azurewebsites.net) · [Report Bug](https://github.com/Nandansai08/gitgraph.studio/issues/new?template=bug_report.yml) · [Request Feature](https://github.com/Nandansai08/gitgraph.studio/issues/new?template=feature_request.yml) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
 ---
 
+<!-- Add a screenshot or GIF of your editor here -->
+<!-- ![GitGraph Studio Screenshot](assets/screenshot.png) -->
+
 ## ✨ What is GitGraph Studio?
 
-GitGraph Studio is a full-stack web app that lets you **visually design GitHub contribution graphs** — paint pixels, craft art, and generate commit schedules that produce any pattern you want on your GitHub profile.
+GitGraph Studio is a **full-stack web app** that lets you visually design GitHub contribution graphs — paint pixels, craft art, and generate commit schedules that produce any pattern you want on your GitHub profile.
 
 Think of it as a **Figma for your GitHub activity grid**.
+
+> **🎉 Fun fact:** Every design you see in the gallery was created with this very tool!
 
 ---
 
 ## 🚀 Features
 
-### 🎨 Editor
-- **Pixel-level contribution graph editor** — paint, erase, fill, and undo on a full 53×7 GitHub-accurate grid
-- **4 intensity levels** matching GitHub's green palette (level 1–4)
-- **Text generator** — type any text and stamp it onto the grid in pixel fonts
-- **Emoji stamp tool** — apply smiley, stars, hearts and more as pixel art
-- **Zoom in/out** and responsive canvas
-- **Undo / Redo** stack
+<table>
+<tr>
+<td width="50%">
 
-### 🖼️ Community Gallery
-- Browse **8 preset designs** including Nebula Flow, Wolfpack, Space Invader, SYSTEM text art, and more
-- **Live SVG graph preview** on every gallery card — see the actual pixel pattern before clicking
-- **Filter by tag** (Art, Text, Logos, Workflows) and search by title/author
-- **Remix in Editor** — load any gallery design directly into the canvas
-- **Fork Design** — save a copy of any design to your own profile (requires sign-in)
+### 🎨 Contribution Graph Editor
+Paint, erase, fill, and undo on a full 53×7 GitHub-accurate grid with 4 intensity levels matching GitHub's green palette.
 
-### 🔐 Authentication
-- Sign in with **GitHub OAuth**, **Google OAuth**, or **Email + Password**
-- GitHub-style **deterministic identicons** — unique geometric avatar for every user, no uploads needed
-- Route protection via Next.js middleware for `/editor`, `/settings`, `/dashboard`
-- Guest access to browse gallery and use the editor (export and save require sign-in)
+### ✏️ Text to Graph
+Type any text and stamp it onto the grid using built-in pixel fonts — turn your name into contribution art.
 
-### 💾 Persistence (Supabase + Prisma)
-- **Save designs** to PostgreSQL via Prisma ORM
-- **Like, Bookmark, Fork** any community design
-- **Threaded comments** on gallery designs
-- **Version history** — every save creates a design version snapshot
-- **Analytics** — view count tracking per design
+### 🖼️ Image to Graph
+Upload an image and convert it to pixel art on your contribution graph automatically.
 
-### 🌐 Community
-- Public profile pages with contribution stats (likes, views, forks)
-- Publish your designs to the community gallery
-- Fork and remix others' work
+### 📅 Custom Date Ranges
+Select any year or custom date range to target specific sections of your GitHub profile.
 
----
+</td>
+<td width="50%">
 
-## 🛠️ Tech Stack
+### 👁️ GitHub Preview
+See a live preview of exactly how your design will look on your actual GitHub profile.
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 15 (App Router) |
-| Language | TypeScript 5.8 |
-| Styling | Tailwind CSS v4 |
-| Auth | Auth.js v5 (NextAuth) — GitHub, Google, Credentials |
-| Database | Supabase PostgreSQL |
-| ORM | Prisma 5 |
-| Animations | Motion (Framer Motion) |
-| Icons | Lucide React |
-| AI | Google Gemini API |
+### 💾 Import / Export
+Export your designs as JSON and import them later. Share designs with others effortlessly.
+
+### 🌐 Community Gallery
+Browse, remix, fork, like, and bookmark community-created designs. Get inspired by others.
+
+### 🔄 Fork & Remix
+Found a design you love? Fork it, make it yours, and publish your own version.
+
+</td>
+</tr>
+</table>
+
+### ⚡ GitHub Actions Integration
+
+Generate a GitHub Actions workflow that automates commits to produce your designed pattern on your contribution graph — **set it and forget it**.
 
 ---
 
-## ⚡ Getting Started
+## 🏗️ Quick Start
 
 ### Prerequisites
-- Node.js 18+
-- A [Supabase](https://supabase.com) project
-- GitHub and/or Google OAuth app credentials
+
+- **Node.js** 18+ ([download](https://nodejs.org))
+- A **[Supabase](https://supabase.com)** project (free tier works)
+- **GitHub OAuth** app credentials ([create one](https://github.com/settings/developers))
 
 ### 1. Clone & Install
 
@@ -97,34 +100,61 @@ npm install
 
 ### 2. Configure Environment Variables
 
-Copy `.env.example` to `.env` and fill in:
+Copy the example file and fill in your values:
+
+```bash
+cp .env.example .env
+```
 
 ```env
-# Supabase Database (from Supabase → Settings → Database)
-DATABASE_URL="postgresql://postgres:[PASSWORD]@db.[PROJECT_ID].supabase.co:6543/postgres?pgbouncer=true"
-DIRECT_URL="postgresql://postgres:[PASSWORD]@db.[PROJECT_ID].supabase.co:5432/postgres"
+# ──────────────────────────────────────────────
+# Database (Supabase → Settings → Database)
+# ──────────────────────────────────────────────
+DATABASE_URL="postgresql://postgres.[PROJECT_ID]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgresql://postgres.[PROJECT_ID]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres"
 
-# Auth.js
-AUTH_SECRET="your-random-secret"        # npx auth secret
+# ──────────────────────────────────────────────
+# Auth.js (NextAuth)
+# ──────────────────────────────────────────────
+AUTH_SECRET=""                              # Generate with: npx auth secret
 NEXTAUTH_URL="http://localhost:3000"
 
+# ──────────────────────────────────────────────
 # GitHub OAuth (github.com/settings/developers)
-AUTH_GITHUB_ID="your-github-client-id"
-AUTH_GITHUB_SECRET="your-github-client-secret"
+# ──────────────────────────────────────────────
+AUTH_GITHUB_ID=""
+AUTH_GITHUB_SECRET=""
 
-# Supabase API
-SUPABASE_URL="https://[PROJECT_ID].supabase.co"
-SUPABASE_ANON_KEY="your-anon-key"
-SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+# ──────────────────────────────────────────────
+# Google OAuth (console.cloud.google.com)
+# ──────────────────────────────────────────────
+AUTH_GOOGLE_ID=""
+AUTH_GOOGLE_SECRET=""
+
+# ──────────────────────────────────────────────
+# Supabase API (supabase.com → Settings → API)
+# ──────────────────────────────────────────────
+SUPABASE_URL=""
+SUPABASE_ANON_KEY=""
+SUPABASE_SERVICE_ROLE_KEY=""
+
+# ──────────────────────────────────────────────
+# Google Gemini (optional, for AI features)
+# ──────────────────────────────────────────────
+GEMINI_API_KEY=""
+
+# ──────────────────────────────────────────────
+# App
+# ──────────────────────────────────────────────
+APP_URL="http://localhost:3000"
 ```
+
+> 💡 See [docs/getting-started.md](docs/getting-started.md) for a detailed walkthrough of each variable.
 
 ### 3. Setup Database
 
 ```bash
-# Apply schema migrations
 npx prisma migrate dev --name init
-
-# Seed preset designs (8 presets including Nebula, Wolf, etc.)
 npx prisma db seed
 ```
 
@@ -134,7 +164,42 @@ npx prisma db seed
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) 🎉
+Open **[http://localhost:3000](http://localhost:3000)** — you're ready to go! 🎉
+
+---
+
+## 🏛️ Architecture
+
+```mermaid
+graph TB
+    Client[Next.js Frontend<br/>React + Tailwind CSS]
+    Auth[Auth.js v5<br/>GitHub · Google · Email]
+    API[Next.js API Routes<br/>Server Actions]
+    ORM[Prisma ORM]
+    DB[(Supabase<br/>PostgreSQL)]
+    AI[Google Gemini<br/>AI Generation]
+
+    Client --> Auth
+    Client --> API
+    API --> ORM
+    ORM --> DB
+    API --> AI
+    Auth --> ORM
+```
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Framework** | Next.js 15 (App Router) | Full-stack React framework |
+| **Language** | TypeScript 5.8 | Type-safe development |
+| **Styling** | Tailwind CSS v4 | Utility-first CSS |
+| **Auth** | Auth.js v5 (NextAuth) | GitHub, Google, Credentials |
+| **Database** | Supabase PostgreSQL | Managed PostgreSQL |
+| **ORM** | Prisma 5 | Type-safe database access |
+| **Animations** | Motion (Framer Motion) | Smooth UI animations |
+| **Icons** | Lucide React | Beautiful SVG icons |
+| **AI** | Google Gemini API | AI-powered generation |
+
+> 📖 For a deeper dive, see [docs/architecture.md](docs/architecture.md)
 
 ---
 
@@ -142,23 +207,25 @@ Open [http://localhost:3000](http://localhost:3000) 🎉
 
 ```
 gitgraph.studio/
-├── app/                   # Next.js App Router
-│   ├── api/               # API routes (gallery, comments, search, users)
-│   ├── actions.ts         # Server Actions (save, fork, like, comment)
-│   └── [[...slug]]/       # SPA catch-all route
-├── auth.ts                # NextAuth configuration
-├── middleware.ts           # Route protection
+├── app/                        # Next.js App Router
+│   ├── api/                    # API routes (gallery, comments, search, users)
+│   ├── actions.ts              # Server Actions (save, fork, like, comment)
+│   └── [[...slug]]/            # SPA catch-all route
+├── auth.ts                     # Auth.js / NextAuth configuration
+├── middleware.ts               # Route protection middleware
 ├── prisma/
-│   ├── schema.prisma      # Full database schema
-│   └── seed.ts            # 8 preset design seeds
+│   ├── schema.prisma           # Database schema
+│   └── seed.ts                 # Preset design seeds
 ├── lib/
-│   └── prisma.ts          # Prisma client singleton
+│   └── prisma.ts               # Prisma client singleton
 ├── src/
-│   ├── App.tsx            # Main application component (~4k lines)
-│   ├── data/galleryData.ts # Local gallery presets
-│   ├── types.ts           # TypeScript type definitions
-│   └── utils/             # Pixel fonts and utilities
-└── components/            # Shared UI components
+│   ├── App.tsx                 # Main application component
+│   ├── data/galleryData.ts     # Local gallery presets
+│   ├── types.ts                # TypeScript type definitions
+│   └── utils/                  # Pixel fonts and utilities
+├── components/                 # Shared UI components
+├── docs/                       # Project documentation
+└── .github/                    # CI workflows & issue templates
 ```
 
 ---
@@ -183,7 +250,7 @@ The following designs are seeded into the database on first setup:
 ## 🔒 Auth-Gated Features
 
 | Feature | Guest | Signed In |
-|---------|-------|-----------|
+|---------|:-----:|:---------:|
 | Browse Gallery | ✅ | ✅ |
 | Use Editor | ✅ | ✅ |
 | Export JSON | ❌ | ✅ |
@@ -195,6 +262,94 @@ The following designs are seeded into the database on first setup:
 
 ---
 
+## 🗺️ Roadmap
+
+### v1 — Core ✅
+- [x] Contribution graph editor with paint, erase, fill tools
+- [x] Export designs as JSON
+- [x] Community gallery with browse, like, bookmark
+- [x] Fork & remix designs
+
+### v2 — Growth 🚧
+- [ ] AI-powered graph generation (Gemini integration)
+- [ ] Real-time collaboration on designs
+- [ ] Design analytics dashboard
+- [ ] Template library expansion
+
+### v3 — Ecosystem 🔮
+- [ ] Templates marketplace
+- [ ] Plugin system for custom tools
+- [ ] API for programmatic graph generation
+- [ ] Design contests & challenges
+
+> 💡 Have an idea? [Open a feature request](https://github.com/Nandansai08/gitgraph.studio/issues/new?template=feature_request.yml)!
+
+---
+
+## 🤝 Contributing
+
+We love contributions! GitGraph Studio is built by the community, for the community.
+
+Whether you're fixing a typo, adding a feature, or improving docs — **every contribution matters**.
+
+```bash
+# Fork the repo, then:
+git clone https://github.com/YOUR_USERNAME/gitgraph.studio.git
+cd gitgraph.studio
+npm install
+npm run dev
+```
+
+Please read our **[Contributing Guide](CONTRIBUTING.md)** for details on:
+- 🔧 Development setup
+- 🌿 Branch naming conventions
+- 📝 Commit message format
+- 🔀 Pull request process
+
+> 🏷️ Look for issues labeled [`good first issue`](https://github.com/Nandansai08/gitgraph.studio/labels/good%20first%20issue) to get started!
+
+---
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Getting Started](docs/getting-started.md) | Detailed setup & configuration guide |
+| [Architecture](docs/architecture.md) | System design & technical overview |
+| [Export Format](docs/export-format.md) | JSON export schema documentation |
+| [Deployment](docs/deployment.md) | Deploy to Vercel, Azure, or self-host |
+| [Authentication](docs/authentication.md) | OAuth setup for GitHub & Google |
+| [Contributing](docs/contributing.md) | In-depth contributor guide |
+
+---
+
+## 🛡️ Security
+
+Found a vulnerability? Please report it responsibly. See our [Security Policy](SECURITY.md) for details.
+
+---
+
 ## 📜 License
 
-MIT © [Nandan Sai Chigurupati](https://github.com/Nandansai08)
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 💖 Acknowledgments
+
+- [Next.js](https://nextjs.org) — The React framework for the web
+- [Supabase](https://supabase.com) — Open source Firebase alternative
+- [Prisma](https://prisma.io) — Next-generation ORM
+- [Auth.js](https://authjs.dev) — Authentication for the web
+- [Tailwind CSS](https://tailwindcss.com) — Utility-first CSS framework
+- [Lucide](https://lucide.dev) — Beautiful open-source icons
+
+---
+
+<div align="center">
+
+**⭐ If you find GitGraph Studio useful, give it a star!**
+
+Made with ❤️ by [Nandan](https://github.com/Nandansai08) and [contributors](https://github.com/Nandansai08/gitgraph.studio/graphs/contributors)
+
+</div>
