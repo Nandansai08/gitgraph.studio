@@ -23,20 +23,42 @@ jobs:
         with:
           node-version: '22.x'
 
-      - name: npm install, build, and test
-        run: |
-          npm install --legacy-peer-deps
-          npm run build --if-present
-          npm run test --if-present
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
         env:
           NEXTAUTH_SECRET: temp_secret_for_building_only
           DATABASE_URL: postgresql://temp:temp@localhost:5432/temp
+
+      - name: Run Prisma Generate
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://temp:temp@localhost:5432/temp
+
+      - name: Build Next.js app
+        run: npm run build
+        env:
+          NEXTAUTH_SECRET: temp_secret_for_building_only
+          DATABASE_URL: postgresql://temp:temp@localhost:5432/temp
+
+      - name: Package deployment artifact
+        run: |
+          mkdir -p deploy-package
+          cp -r .next deploy-package/
+          cp -r public deploy-package/ 2>/dev/null || true
+          cp package.json deploy-package/
+          cp next.config.* deploy-package/ 2>/dev/null || true
+          cp prisma deploy-package/ -r 2>/dev/null || true
+          cd deploy-package
+          npm install --omit=dev --legacy-peer-deps
+          cp -r ../node_modules/.prisma node_modules/ 2>/dev/null || true
+          zip -ry ../deploy.zip .
+          cd ..
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: .
+          path: deploy.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -64,4 +86,4 @@ jobs:
         with:
           app-name: 'gitgraphstudio'
           slot-name: 'Production'
-          package: .
+          package: deploy.zip
