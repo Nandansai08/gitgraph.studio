@@ -37,7 +37,8 @@ import {
   Minus,
   CheckCircle,
   AlertTriangle,
-  Lightbulb
+  Lightbulb,
+  Upload
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { GALLERY_ITEMS } from './data/galleryData';
@@ -250,6 +251,34 @@ export default function App() {
   // Pattern Nudge/Shift configs
   const [isShiftExpanded, setIsShiftExpanded] = useState<boolean>(true);
 
+  // Dialog Open States
+  const [isNewFileDialogOpen, setIsNewFileDialogOpen] = useState<boolean>(false);
+  const [isPublishToGalleryDialogOpen, setIsPublishToGalleryDialogOpen] = useState<boolean>(false);
+  
+  // Custom Created designs that are loaded in local storage gallery
+  const [customGalleryItems, setCustomGalleryItems] = useState<GalleryItem[]>(() => {
+    const saved = localStorage.getItem('gitgraph_custom_gallery');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  // Sync custom gallery to local Storage
+  useEffect(() => {
+    localStorage.setItem('gitgraph_custom_gallery', JSON.stringify(customGalleryItems));
+  }, [customGalleryItems]);
+
+  // Form Fields for new file and publish to gallery
+  const [newFileTitle, setNewFileTitle] = useState<string>('untitled_release_branch');
+  const [newPresetType, setNewPresetType] = useState<string>('blank');
+  
+  const [publishTitle, setPublishTitle] = useState<string>('');
+  const [publishDescription, setPublishDescription] = useState<string>('');
+  const [publishSelectedTags, setPublishSelectedTags] = useState<string[]>(['Art']);
+
   // Gallery Contexts
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Trending'); // "Trending", "Latest", "Featured"
@@ -389,6 +418,98 @@ export default function App() {
 
   const handleResetZoom = () => {
     setZoomLevel(100);
+  };
+
+  // Create / Open a fresh customized file workspace with presets
+  const handleCreateNewFile = () => {
+    let sanitizedName = newFileTitle.trim();
+    if (!sanitizedName) {
+      triggerToast('Filename cannot be empty', 'error');
+      return;
+    }
+    if (!sanitizedName.toLowerCase().endsWith('.json')) {
+      sanitizedName = `${sanitizedName}.json`;
+    }
+
+    let initialPixels: Record<string, number> = {};
+
+    if (newPresetType === 'wave') {
+      for (let w = 0; w < WEEKS; w++) {
+        const d = Math.round(3 + 2.2 * Math.sin(w / 4));
+        if (d >= 0 && d < DAYS) {
+          initialPixels[`${w}_${d}`] = 4;
+          if (d - 1 >= 0) initialPixels[`${w}_${d - 1}`] = 2;
+          if (d + 1 < DAYS) initialPixels[`${w}_${d + 1}`] = 2;
+        }
+      }
+    } else if (newPresetType === 'starry') {
+      for (let i = 0; i < 65; i++) {
+        const w = Math.floor(Math.random() * WEEKS);
+        const d = Math.floor(Math.random() * DAYS);
+        initialPixels[`${w}_${d}`] = Math.floor(Math.random() * 4) + 1;
+      }
+    } else if (newPresetType === 'binary_checker') {
+      for (let w = 0; w < WEEKS; w++) {
+        for (let d = 0; d < DAYS; d++) {
+          if ((w + d) % 2 === 0) {
+            initialPixels[`${w}_${d}`] = 2;
+          }
+        }
+      }
+    }
+
+    setPixels(initialPixels);
+    setDesignName(sanitizedName);
+    setUndoStack([]);
+    setRedoStack([]);
+    setIsNewFileDialogOpen(false);
+    triggerToast(`Opened new workspace file: "${sanitizedName}"`, 'success');
+  };
+
+  // Publish current customized design graph to local Community Gallery
+  const handlePublishToGallery = () => {
+    const rawTitle = publishTitle.trim() || designName.replace('.json', '').replace(/[_-]+/g, ' ');
+    const authorName = userSession?.username || 'anonymous_coder';
+    const authorAvatar = userSession?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+    
+    // Map existing active pixels to GridPixel format
+    const gridPixels: GridPixel[] = Object.entries(pixels)
+      .filter(([_, level]) => (level as number) > 0)
+      .map(([key, level]) => {
+        const [w, d] = key.split('_').map(Number);
+        return { w, d, level: level as number };
+      });
+
+    if (gridPixels.length === 0) {
+      triggerToast('Cannot publish an empty graph! Draw something first.', 'error');
+      return;
+    }
+
+    const newGalleryItem: GalleryItem = {
+      id: `custom-design-${Date.now()}`,
+      title: rawTitle,
+      author: authorName,
+      authorAvatar: authorAvatar,
+      likes: Math.floor(Math.random() * 12) + 1,
+      downloads: 0,
+      tags: publishSelectedTags.length > 0 ? publishSelectedTags : ['Art'],
+      pixels: gridPixels,
+      imageUrl: '', // Nicely triggers placeholder/interactive drawing preview in community list
+      description: publishDescription.trim() || 'A beautiful contribution pattern generated using GitGraph Studio.'
+    };
+
+    setCustomGalleryItems(prev => [newGalleryItem, ...prev]);
+    setIsPublishToGalleryDialogOpen(false);
+    
+    // Switch to gallery tab and show success toast
+    setActiveTab('gallery');
+    
+    // Clear publish modal input fields
+    setPublishTitle('');
+    setPublishDescription('');
+    setPublishSelectedTags(['Art']);
+    
+    triggerToast(`Successfully published "${rawTitle}" to Community Gallery! 🎉`, 'success');
   };
 
   // Save Design inside localStorage
@@ -815,7 +936,7 @@ export default function App() {
   const filterTags = ['All', 'Art', 'Logos', 'Text', 'Workflows'];
 
   // Filter gallery items
-  const filteredGalleryItems = GALLERY_ITEMS.filter(item => {
+  const filteredGalleryItems = [...customGalleryItems, ...GALLERY_ITEMS].filter(item => {
     const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           item.author.toLowerCase().includes(searchQuery.toLowerCase());
     
@@ -855,6 +976,219 @@ export default function App() {
             )}
             <span className="font-medium text-xs tracking-wider uppercase">{toast.message}</span>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── NEW FILE DIALOG ─── */}
+      <AnimatePresence>
+        {isNewFileDialogOpen && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-[#121419] border border-white/10 rounded-none w-full max-w-lg p-6 md:p-8 flex flex-col gap-6 text-left shadow-2xl relative"
+            >
+              <div>
+                <h3 className="text-lg font-serif italic text-white font-semibold">Initialize Contribution Workspace</h3>
+                <p className="text-[10px] text-gray-400 font-mono uppercase tracking-wider mt-1">Configure a new workspace template schema file</p>
+              </div>
+
+              {/* Input for Filename */}
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] uppercase font-mono tracking-widest text-[#c7c4d7]">Workspace File Name</label>
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 text-gray-500 text-xs font-mono select-none">📁</span>
+                  <input
+                    type="text"
+                    value={newFileTitle}
+                    onChange={(e) => setNewFileTitle(e.target.value)}
+                    placeholder="e.g. core_patch_00"
+                    className="w-full bg-[#0f1115] border border-white/10 text-xs text-white pl-9 pr-14 py-3 rounded-none outline-none focus:border-white/30 transition-all font-mono"
+                  />
+                  <span className="absolute right-3 text-[10px] text-gray-500 font-mono font-bold select-none uppercase">.JSON</span>
+                </div>
+              </div>
+
+              {/* Selector for Preset patterns */}
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] uppercase font-mono tracking-widest text-[#c7c4d7]">Initial Preset Pattern</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'blank', title: 'Blank Canvas', desc: 'Squeaky clean blank slate contributor matrix template', emoji: '🔲' },
+                    { id: 'wave', title: 'Nebula Wave Flow', desc: 'Smooth horizontal sine wave vector pre-load pattern', emoji: '〰️' },
+                    { id: 'starry', title: 'Cosmic Starfield', desc: 'Random clusters of scattered commit nodes on matrix', emoji: '🌌' },
+                    { id: 'binary_checker', title: 'Binary Grid Check', desc: 'An elegant alternating check pattern on contributions', emoji: '🏁' },
+                  ].map((p) => (
+                    <div
+                      key={p.id}
+                      onClick={() => setNewPresetType(p.id)}
+                      className={`p-3 border cursor-pointer hover:bg-white/5 transition-all flex flex-col gap-1 items-start text-left select-none relative ${
+                        newPresetType === p.id 
+                          ? 'border-[#39d353] bg-[#39d353]/5' 
+                          : 'border-white/10 bg-[#0f1115]/50'
+                      }`}
+                    >
+                      {newPresetType === p.id && (
+                        <span className="absolute top-2 right-2 text-[10px] text-[#39d353] font-bold">● SELECTED</span>
+                      )}
+                      <span className="text-lg">{p.emoji}</span>
+                      <span className="text-xs font-bold text-white font-sans mt-1">{p.title}</span>
+                      <span className="text-[10px] text-gray-500 leading-tight mt-0.5 line-clamp-2">{p.desc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dialog controls */}
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-white/5 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsNewFileDialogOpen(false)}
+                  className="px-4 py-2.5 hover:bg-white/5 border border-transparent text-xs font-mono uppercase tracking-wider text-gray-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateNewFile}
+                  className="px-6 py-2.5 bg-white hover:bg-neutral-200 text-black text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Open Workspace
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── PUBLISH TO COMMUNITY GALLERY DIALOG ─── */}
+      <AnimatePresence>
+        {isPublishToGalleryDialogOpen && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-[#121419] border border-white/10 rounded-none w-full max-w-lg p-6 md:p-8 flex flex-col gap-6 text-left shadow-2xl relative"
+            >
+              <div>
+                <h3 className="text-lg font-serif italic text-white font-semibold">Publish to Community Gallery</h3>
+                <p className="text-[10px] text-[#39d353] font-mono uppercase tracking-wider mt-1">Publish & share your customized graph with fellow developers</p>
+              </div>
+
+              {/* HIGH FIDELITY EXPLANATORY SYSTEM: Save vs Publish DIFFERENCES */}
+              <div className="grid grid-cols-2 gap-4 bg-[#0f1115] border border-white/5 p-4 rounded-none">
+                <div className="flex flex-col gap-1 border-r border-white/5 pr-4 text-left">
+                  <span className="text-white font-bold flex items-center gap-1.5 uppercase font-mono text-[9px] tracking-widest">
+                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full inline-block"></span>
+                    Save Draft (Private)
+                  </span>
+                  <span className="text-[10px] text-gray-400 leading-relaxed font-sans font-normal">
+                    Saves current grids silently to browser <strong>localStorage</strong>. Private to you. Perfect for active drafts.
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1 text-left">
+                  <span className="text-[#39d353] font-bold flex items-center gap-1.5 uppercase font-mono text-[9px] tracking-widest-plus">
+                    <span className="w-1.5 h-1.5 bg-[#39d353] rounded-full inline-block animate-pulse"></span>
+                    Publish (Public feed)
+                  </span>
+                  <span className="text-[10px] text-gray-400 leading-relaxed font-sans font-normal">
+                    Pushes template to global <strong>Community Gallery</strong>. Accessible to everyone for search & instantaneous remixing!
+                  </span>
+                </div>
+              </div>
+
+              {/* Title input field */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] uppercase font-mono tracking-widest text-[#c7c4d7]">Template Design Title</label>
+                <input
+                  type="text"
+                  value={publishTitle}
+                  onChange={(e) => setPublishTitle(e.target.value)}
+                  placeholder="e.g. SPARK ARCHITECTURE PATTERN"
+                  className="w-full bg-[#0f1115] border border-white/10 text-xs text-white px-3.5 py-3 rounded-none outline-none focus:border-white/30 transition-all font-mono uppercase"
+                />
+              </div>
+
+              {/* Author handle read-only badge */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] uppercase font-mono tracking-widest text-[#c7c4d7]">Publisher Handle</label>
+                <div className="w-full bg-[#0f1115] border border-white/5 px-3.5 py-3 flex items-center justify-between text-xs font-mono text-gray-400">
+                  <span className="text-emerald-400 font-bold">@{userSession?.username || 'anonymous_coder'}</span>
+                  <span className="text-[9px] text-gray-600 uppercase">Synchronized via Session</span>
+                </div>
+              </div>
+
+              {/* Description template */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] uppercase font-mono tracking-widest text-[#c7c4d7]">Description Bio</label>
+                <textarea
+                  value={publishDescription}
+                  onChange={(e) => setPublishDescription(e.target.value)}
+                  rows={2}
+                  maxLength={140}
+                  placeholder="A beautiful contribution pattern generated using GitGraph Studio."
+                  className="w-full bg-[#0f1115] border border-white/10 text-xs text-white px-3.5 py-2.5 rounded-none outline-none focus:border-white/30 transition-all leading-relaxed font-sans"
+                />
+              </div>
+
+              {/* Multiselect Tags selector selection */}
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] uppercase font-mono tracking-widest text-[#c7c4d7]">Tags Categorization (Select multiple)</label>
+                <div className="flex gap-2 flex-wrap">
+                  {['Art', 'Logos', 'Text', 'Workflows'].map((tag) => {
+                    const isSelected = publishSelectedTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setPublishSelectedTags(prev => prev.filter(t => t !== tag));
+                          } else {
+                            setPublishSelectedTags(prev => [...prev, tag]);
+                          }
+                        }}
+                        className={`px-3.5 py-1.5 border text-2xs uppercase tracking-wider font-semibold font-mono rounded-full transition-all cursor-pointer ${
+                          isSelected 
+                            ? 'bg-[#39d353]/15 border-[#39d353] text-[#39d353]' 
+                            : 'bg-[#0f1115] border-white/10 text-[#c7c4d7] hover:border-white/30'
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="p-3 bg-[#0f1115] border border-white/5 flex justify-between items-center text-[10px] font-mono text-gray-500">
+                <span>Active cells to publish:</span>
+                <span className="text-white font-semibold">
+                  {Object.values(pixels).filter(v => (v as number) > 0).length} active nodes (weeks matrix)
+                </span>
+              </div>
+
+              {/* Dialog controls */}
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-white/5 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsPublishToGalleryDialogOpen(false)}
+                  className="px-4 py-2.5 hover:bg-white/5 border border-transparent text-xs font-mono uppercase tracking-wider text-gray-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePublishToGallery}
+                  className="px-6 py-2.5 bg-[#39d353] hover:bg-[#2eab42] text-black text-xs font-bold uppercase tracking-widest transition-all cursor-pointer shadow-[0_0_15px_rgba(57,211,83,0.15)]"
+                >
+                  Publish Template
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
@@ -1177,6 +1511,22 @@ export default function App() {
 
                 <div className="h-4 w-[1px] bg-white/10" />
 
+                {/* Instant New File Creator Trigger */}
+                <button 
+                  onClick={() => {
+                    setNewFileTitle('custom_release_patch');
+                    setNewPresetType('blank');
+                    setIsNewFileDialogOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 py-1.5 px-3 bg-[#181d28]/80 hover:bg-white/5 border border-white/10 hover:border-white/20 text-[10px] uppercase font-mono tracking-wider font-semibold text-[#c7c4d7] hover:text-white transition-all rounded-none cursor-pointer"
+                  title="Open New File Workspace"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#39d353]" />
+                  <span>New File</span>
+                </button>
+
+                <div className="h-4 w-[1px] bg-white/10" />
+
                 {/* Undo Stack and Redo stack controls */}
                 <div className="flex items-center gap-1.5">
                   <button 
@@ -1209,7 +1559,7 @@ export default function App() {
               </div>
 
               {/* Quick Stats Scale and Actions */}
-              <div className="flex items-center gap-4 z-10">
+              <div className="flex items-center gap-3 z-10 flex-wrap">
                 
                 {/* Scale Zoom Controls */}
                 <div className="flex items-center gap-2 text-gray-400 bg-[#0f1115] border border-white/10 rounded-none px-2.5 py-1 text-xs select-none">
@@ -1224,23 +1574,45 @@ export default function App() {
                   </button>
                 </div>
 
-                <button 
-                  id="save-btn"
-                  onClick={handleSaveDesign}
-                  className="px-4 py-1.5 border border-white/15 text-xs font-semibold rounded-none hover:bg-white/5 text-white tracking-widest uppercase transition-colors flex items-center gap-2"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>Save</span>
-                </button>
+                {/* Local Workspace Cluster */}
+                <div className="flex items-center gap-1.5 bg-[#161a22]/80 border border-white/10 p-1 rounded-none flex-wrap">
+                  <span className="text-[8px] uppercase tracking-wider text-gray-500 font-mono font-bold px-1.5 select-none hidden md:inline">Draft:</span>
+                  <button 
+                    id="save-btn"
+                    onClick={handleSaveDesign}
+                    className="px-2.5 py-1 text-[10px] font-mono font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-1.5 cursor-pointer rounded-none border border-white/5 bg-[#0f1115]/50"
+                    title="Save current progress privately inside browser localStorage"
+                  >
+                    <Save className="w-3 h-3 text-gray-400" />
+                    <span>Save</span>
+                  </button>
 
-                <button 
-                  id="export-btn"
-                  onClick={handleExportJson}
-                  className="px-4 py-1.5 bg-white text-xs font-bold rounded-none text-black hover:bg-neutral-200 tracking-widest uppercase glow-button transition-all flex items-center gap-2.5"
-                >
-                  <Download className="w-3.5 h-3.5 shrink-0" />
-                  <span>Export design.json</span>
-                </button>
+                  <button 
+                    id="export-btn"
+                    onClick={handleExportJson}
+                    className="px-2.5 py-1 text-[10px] font-mono font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all flex items-center gap-1.5 cursor-pointer rounded-none border border-white/5 bg-[#0f1115]/50"
+                    title="Download model.json file to local storage disk"
+                  >
+                    <Download className="w-3 h-3 text-gray-400 shrink-0" />
+                    <span>Export</span>
+                  </button>
+
+                  <div className="h-3.5 w-[1px] bg-white/10 mx-0.5" />
+
+                  <button 
+                    onClick={() => {
+                      const cleanTitle = designName.replace('.json', '').replace(/[_-]+/g, ' ').toUpperCase();
+                      setPublishTitle(cleanTitle);
+                      setPublishDescription('');
+                      setIsPublishToGalleryDialogOpen(true);
+                    }}
+                    className="px-3.5 py-1 bg-[#39d353] text-[#0f1115] hover:bg-[#2eab42] font-semibold text-[10px] rounded-none font-mono tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_12px_rgba(57,211,83,0.2)] hover:shadow-[0_0_20px_rgba(57,211,83,0.4)] border-none"
+                    title="Publish current template to community gallery feed publicly"
+                  >
+                    <Upload className="w-3 h-3 text-[#0f1115] stroke-[2.5]" />
+                    <span>Publish</span>
+                  </button>
+                </div>
               </div>
             </>
           ) : (
