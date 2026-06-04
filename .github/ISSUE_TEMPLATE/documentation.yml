@@ -1,0 +1,42 @@
+name: 📝 Documentation Improvement
+description: Suggest improvements or report issues with our documentation
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us make our docs clean, clear, and comprehensive. Use this template to suggest changes or point out issues.
+  - type: textarea
+    id: details
+    attributes:
+      label: Documentation Page(s) Affected
+      description: Which page(s) or file(s) need updates?
+      placeholder: e.g., docs/getting-started.md, README.md, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: issue
+    attributes:
+      label: What needs improvement?
+      description: Describe the problem with the current documentation.
+      placeholder: e.g., Outdated command, spelling typo, missing environment variable details...
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Proposed Changes
+      description: Describe what you would suggest writing instead.
+      placeholder: Provide the text updates or additions here...
+    validations:
+      required: true
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Please check the following before submitting
+      options:
+        - label: I would like to submit a Pull Request to fix this myself.
+          required: false
+        - label: I have reviewed the existing issues to make sure this documentation improvement isn't already requested.
+          required: true
