@@ -1,8 +1,31 @@
+# Dependencies
 node_modules/
-build/
+
+# Build outputs
+.next/
 dist/
-coverage/
-.DS_Store
-*.log
-.env*
+build/
+out/
+
+# Type checking cache
+tsconfig.tsbuildinfo
+
+# Environment variables (keep .env.example)
+.env
+.env.local
+.env.*.local
 !.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma generated (regenerated via prisma generate)
+# prisma/migrations are committed — they define schema history
+
+# Coverage
+coverage/

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { signIn } from 'next-auth/react';
+
 import { 
   Hexagon, 
   Edit3, 
@@ -30,9 +32,6 @@ import {
   Info, 
   Check, 
   ChevronDown, 
-  ChevronLeft,
-  ChevronRight,
-  Menu, 
   Github, 
   FolderLock, 
   User, 
@@ -47,6 +46,8 @@ import { AnimatePresence, motion } from 'motion/react';
 import { GALLERY_ITEMS } from './data/galleryData';
 import { PIXEL_FONTS } from './utils/pixelFonts';
 import { Tool, FontStyle, GalleryItem, GridPixel, SavedDesign, UserSession, UserSettings } from './types';
+import { GraphPreview } from '@/components/graph-preview';
+import { Identicon } from '@/components/identicon';
 
 const EMOJI_PATTERNS: Record<string, { name: string; visual: string; grid: number[][] }> = {
   smile: {
@@ -257,54 +258,6 @@ export default function App() {
   // Dialog Open States
   const [isNewFileDialogOpen, setIsNewFileDialogOpen] = useState<boolean>(false);
   const [isPublishToGalleryDialogOpen, setIsPublishToGalleryDialogOpen] = useState<boolean>(false);
-
-  // Sidebar states
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
-    const saved = localStorage.getItem('gitgraph_sidebar_collapsed');
-    if (saved !== null) {
-      return saved === 'true';
-    }
-    if (typeof window !== 'undefined') {
-      return window.innerWidth <= 1024;
-    }
-    return false;
-  });
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
-  const [isMobile, setIsMobile] = useState<boolean>(false);
-  const [isTablet, setIsTablet] = useState<boolean>(false);
-
-  useEffect(() => {
-    const handleResize = () => {
-      const width = window.innerWidth;
-      const mobile = width < 768;
-      const tablet = width >= 768 && width <= 1024;
-      setIsMobile(mobile);
-      setIsTablet(tablet);
-      
-      if (tablet) {
-        const saved = localStorage.getItem('gitgraph_sidebar_collapsed');
-        if (saved === null) {
-          setSidebarCollapsed(true);
-        }
-      }
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const toggleSidebar = () => {
-    setSidebarCollapsed(prev => {
-      const next = !prev;
-      localStorage.setItem('gitgraph_sidebar_collapsed', String(next));
-      return next;
-    });
-  };
-
-  const getMainPaddingLeft = () => {
-    if (isMobile) return 'pl-0';
-    return sidebarCollapsed ? 'pl-[72px]' : 'pl-[260px]';
-  };
   
   // Custom Created designs that are loaded in local storage gallery
   const [customGalleryItems, setCustomGalleryItems] = useState<GalleryItem[]>(() => {
@@ -317,10 +270,18 @@ export default function App() {
     return [];
   });
 
+  // API-fetched gallery items from Supabase
+  const [apiGalleryItems, setApiGalleryItems] = useState<any[]>([]);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+  const [galleryError, setGalleryError] = useState(false);
+  const [selectedSort, setSelectedSort] = useState<'trending' | 'newest' | 'liked' | 'forked'>('trending');
+
   // Sync custom gallery to local Storage
   useEffect(() => {
     localStorage.setItem('gitgraph_custom_gallery', JSON.stringify(customGalleryItems));
   }, [customGalleryItems]);
+
+
 
   // Form Fields for new file and publish to gallery
   const [newFileTitle, setNewFileTitle] = useState<string>('untitled_release_branch');
@@ -334,6 +295,44 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Trending'); // "Trending", "Latest", "Featured"
   const [selectedTag, setSelectedTag] = useState<string>('All'); // "All", "Art", "Logos", "Text", "Workflows"
+
+  // Fetch gallery from /api/gallery whenever tab, sort, tag, or search changes
+  useEffect(() => {
+    if (activeTab !== 'gallery') return;
+    setGalleryLoading(true);
+    setGalleryError(false);
+    const params = new URLSearchParams({
+      sort: selectedSort,
+      tag: selectedTag,
+      ...(searchQuery ? { q: searchQuery } : {}),
+    });
+    fetch(`/api/gallery?${params.toString()}`)
+      .then(r => r.json())
+      .then(data => {
+        const mapped = (data.designs || []).map((d: any) => ({
+          id: d.id,
+          title: d.title,
+          description: d.description,
+          author: d.creator?.username || 'unknown',
+          authorAvatar: d.creator?.image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+          likes: d.likes || 0,
+          downloads: d.forks || 0,
+          tags: d.tags || [],
+          imageUrl: d.previewImage || null,
+          isTemplate: false,
+          pixels: Object.entries(d.graphData || {}).map(([key, level]) => {
+            const [w, day] = key.split('_').map(Number);
+            return { w, d: day, level: Number(level) };
+          })
+        }));
+        setApiGalleryItems(mapped);
+      })
+      .catch(() => {
+        setGalleryError(true);
+        setApiGalleryItems([]);
+      })
+      .finally(() => setGalleryLoading(false));
+  }, [activeTab, selectedSort, selectedTag, searchQuery]);
 
   // Feedback Notifications/Toasts (e.g. copied code, exported json, design saved)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -416,6 +415,21 @@ export default function App() {
       window.removeEventListener('mouseup', handleGlobalMouseUp);
     };
   }, []);
+
+  // Lock body and html scroll when auth tab or dialogs are active
+  useEffect(() => {
+    if (activeTab === 'auth' || isNewFileDialogOpen || isPublishToGalleryDialogOpen) {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, [activeTab, isNewFileDialogOpen, isPublishToGalleryDialogOpen]);
 
   // Quick toast announcer helper
   const triggerToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
@@ -986,16 +1000,181 @@ export default function App() {
   // Categories list
   const filterTags = ['All', 'Art', 'Logos', 'Text', 'Workflows'];
 
-  // Filter gallery items
-  const filteredGalleryItems = [...customGalleryItems, ...GALLERY_ITEMS].filter(item => {
-    const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          item.author.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    // Tag filter
-    const matchesTag = selectedTag === 'All' || item.tags.includes(selectedTag);
+  // Merge: custom local items on top, then API results (or local fallback)
+  const filteredGalleryItems = [
+    ...customGalleryItems.filter(item => {
+      const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (item.author || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesTag = selectedTag === 'All' || item.tags.includes(selectedTag);
+      return matchesSearch && matchesTag;
+    }),
+    ...(
+      apiGalleryItems.length > 0
+        ? apiGalleryItems
+        : GALLERY_ITEMS.filter(item => {
+            const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                  (item.author || '').toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesTag = selectedTag === 'All' || item.tags.includes(selectedTag);
+            return matchesSearch && matchesTag;
+          })
+    )
+  ];
 
-    return matchesSearch && matchesTag;
-  });
+  if (activeTab === 'auth') {
+    return (
+      <div className="fixed inset-0 w-screen h-screen min-h-[100dvh] flex items-center justify-center p-8 z-50 bg-[#0f1115] select-text overflow-hidden">
+        {/* Feedbacks Toast Announcer banner */}
+        <AnimatePresence>
+          {toast && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className={`fixed top-4 right-[340px] z-[999] px-5 py-3 rounded-none border flex items-center gap-2.5 shadow-2xl backdrop-blur-md ${
+                toast.type === 'success' 
+                  ? 'bg-neutral-900 border-white/20 text-white' 
+                  : toast.type === 'error'
+                  ? 'bg-red-500/15 border-red-500/30 text-red-400'
+                  : 'bg-neutral-900 border-white/10 text-gray-200'
+              }`}
+            >
+              {toast.type === 'success' ? (
+                <CheckCircle className="w-4.5 h-4.5 text-white shrink-0" />
+              ) : toast.type === 'error' ? (
+                <AlertTriangle className="w-4.5 h-4.5 text-red-400 shrink-0" />
+              ) : (
+                <Info className="w-4.5 h-4.5 text-gray-400 shrink-0" />
+              )}
+              <span className="font-medium text-xs tracking-wider uppercase">{toast.message}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Background Editorial Graphic Decorator skew element */}
+        <div className="absolute top-0 right-0 w-[450px] h-full bg-[#16181f]/60 -skew-x-6 transform translate-x-32 z-0 border-l border-white/5 pointer-events-none" />
+        
+        {/* Elegant glowing cosmic background orb */}
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-[#a5b4fc]/5 rounded-full blur-3xl pointer-events-none" />
+
+        <motion.div 
+          key="auth"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="max-w-md w-full bg-[#121419]/95 border border-white/10 rounded-none p-8 shadow-2xl backdrop-blur relative flex flex-col gap-6 text-left"
+        >
+          {/* Visual Header */}
+          <div className="text-center">
+            <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-3">
+              <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-[#39d353] stroke-[1.5]" stroke="currentColor">
+                <rect x="2" y="2" width="7" height="7" rx="1" fill="#0e4429" stroke="#39d353" />
+                <rect x="15" y="2" width="7" height="7" rx="1" fill="#006d32" stroke="#26a641" />
+                <rect x="2" y="15" width="7" height="7" rx="1" fill="#26a641" stroke="#39d353" strokeDasharray="1 1" />
+                <circle cx="18" cy="18" r="3.5" fill="#39d353" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-serif italic text-white tracking-tight">Sign in to GitGraph Studio</h2>
+            <p className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mt-1">Save designs, fork templates &amp; join the community</p>
+          </div>
+
+          {/* OAuth Buttons */}
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => signIn('github', { callbackUrl: '/' })}
+              className="w-full flex items-center justify-center gap-3 py-2.5 px-4 bg-[#24292f] hover:bg-[#2f363d] border border-white/10 hover:border-white/20 text-white text-xs font-semibold font-mono transition-all cursor-pointer rounded-none"
+            >
+              <svg viewBox="0 0 24 24" className="w-4 h-4 fill-white shrink-0">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+              </svg>
+              Continue with GitHub
+            </button>
+
+            <button
+              onClick={() => signIn('google', { callbackUrl: '/' })}
+              className="w-full flex items-center justify-center gap-3 py-2.5 px-4 bg-white hover:bg-neutral-100 border border-white/10 text-black text-xs font-semibold font-mono transition-all cursor-pointer rounded-none"
+            >
+              <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              Continue with Google
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-[1px] bg-white/10" />
+            <span className="text-[10px] text-gray-600 font-mono uppercase tracking-widest">or email</span>
+            <div className="flex-1 h-[1px] bg-white/10" />
+          </div>
+          {/* Email / Password Form */}
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const email = (form.querySelector('#auth-email') as HTMLInputElement).value;
+              const password = (form.querySelector('#auth-password') as HTMLInputElement).value;
+              const res = await signIn('credentials', { email, password, redirect: false });
+              if (res?.error) {
+                triggerToast('Invalid email or password.', 'error');
+              } else {
+                triggerToast('Signed in successfully!', 'success');
+                setActiveTab('editor');
+              }
+            }}
+            className="flex flex-col gap-3"
+          >
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] uppercase tracking-widest text-gray-500 font-mono">Email</label>
+              <input
+                id="auth-email"
+                type="email"
+                required
+                placeholder="you@example.com"
+                className="w-full bg-[#0f1115] border border-white/10 text-xs text-white px-3 py-2.5 rounded-none focus:outline-none focus:border-white/40 transition-all font-mono"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] uppercase tracking-widest text-gray-500 font-mono">Password</label>
+              <input
+                id="auth-password"
+                type="password"
+                required
+                placeholder="••••••••"
+                className="w-full bg-[#0f1115] border border-white/10 text-xs text-white px-3 py-2.5 rounded-none focus:outline-none focus:border-white/40 transition-all font-mono"
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full py-2.5 bg-[#39d353] hover:bg-[#2ea043] text-black font-bold text-xs uppercase tracking-widest transition-all rounded-none cursor-pointer mt-1"
+            >
+              Sign In
+            </button>
+          </form>
+
+          <p className="text-[10px] text-center text-gray-600 font-mono leading-relaxed">
+            Secured via Auth.js OAuth flow. GitHub &amp; Google permissions are scoped to read-only profile identification.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('editor');
+              triggerToast('Continuing as guest — sign in to save your work.', 'info');
+            }}
+            className="text-center text-[10px] text-gray-500 hover:text-white font-mono uppercase tracking-widest underline cursor-pointer transition-colors"
+          >
+            Cancel &amp; Use Editor
+          </button>
+
+        </motion.div>
+      </div>
+    );
+  }
+
 
   return (
     <div 
@@ -1243,433 +1422,103 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* RENDER THE FULL SCREEN AUTHORIZATION PAGE IF ACTIVE TAB IS AUTH */}
-      {activeTab === 'auth' ? (
-        <div className="absolute inset-0 w-full h-full flex items-center justify-center p-8 z-50 bg-[#0f1115] select-text">
-          {/* Background Editorial Graphic Decorator skew element */}
-          <div className="absolute top-0 right-0 w-[450px] h-full bg-[#16181f]/60 -skew-x-6 transform translate-x-32 z-0 border-l border-white/5 pointer-events-none" />
-          
-          {/* Elegant glowing cosmic background orb */}
-          <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-[#a5b4fc]/5 rounded-full blur-3xl pointer-events-none" />
-
-          <motion.div 
-            key="auth"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="max-w-md w-full bg-[#121419]/95 border border-white/10 rounded-none p-8 shadow-2xl backdrop-blur relative flex flex-col gap-6 text-left"
-          >
-            {/* Visual Header */}
-            <div className="text-center">
-              <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-3">
-                <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-[#39d353] stroke-[1.5]" stroke="currentColor">
-                  <rect x="2" y="2" width="7" height="7" rx="1" fill="#0e4429" stroke="#39d353" />
-                  <rect x="15" y="2" width="7" height="7" rx="1" fill="#006d32" stroke="#26a641" />
-                  <rect x="2" y="15" width="7" height="7" rx="1" fill="#26a641" stroke="#39d353" strokeDasharray="1 1" />
-                  <circle cx="18" cy="18" r="3.5" fill="#39d353" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-serif italic text-white tracking-tight uppercase">Authorize Dev Workspace</h2>
-              <p className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mt-1">Configure profile handles and access grid templates</p>
-            </div>
-
-            <form 
-              onSubmit={(e) => {
-                e.preventDefault();
-                
-                const formEl = e.currentTarget;
-                const userVal = (formEl.querySelector('#auth-username') as HTMLInputElement)?.value || 'developer';
-                const emailVal = (formEl.querySelector('#auth-email') as HTMLInputElement)?.value || 'dev@gitgraph.ai';
-                const nameVal = (formEl.querySelector('#auth-displayname') as HTMLInputElement)?.value || 'Active Developer';
-                const avatarVal = (formEl.querySelector('[name="auth-avatar"]:checked') as HTMLInputElement)?.value || 
-                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
-
-                setUserSession({
-                  username: userVal.toLowerCase().replace(/\s+/g, ''),
-                  email: emailVal,
-                  name: nameVal,
-                  bio: 'Enthusiastic grid compositor. Committed to beautiful graphs and clean visual branches.',
-                  avatar: avatarVal,
-                  isLoggedIn: true
-                });
-
-                triggerToast(`Welcome back, ${nameVal}! Session loaded.`, 'success');
-                setActiveTab('editor');
-              }}
-              className="flex flex-col gap-4 text-left"
-            >
-              
-              <div className="flex flex-col gap-1">
-                <label className="text-[9px] uppercase tracking-widest text-gray-500 font-mono">Username Handle</label>
-                <input 
-                  id="auth-username"
-                  required
-                  placeholder="e.g. hackercat"
-                  type="text" 
-                  defaultValue="hacker_prime"
-                  className="w-full mt-1 bg-[#0f1115] border border-white/10 text-xs text-white px-3 py-2.5 rounded-none focus:outline-none focus:border-white/50 transition-all font-mono"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-[9px] uppercase tracking-widest text-[#a5b4fc] font-mono">Developer Email</label>
-                <input 
-                  id="auth-email"
-                  required
-                  placeholder="e.g. cats@coder.io"
-                  type="email" 
-                  defaultValue="hack@coder.io"
-                  className="w-full mt-1 bg-[#0f1115] border border-white/10 text-xs text-white px-3 py-2.5 rounded-none focus:outline-none focus:border-white/50 transition-all font-mono"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-[9px] uppercase tracking-widest text-[#fda4af] font-mono">Profile Title Name</label>
-                <input 
-                  id="auth-displayname"
-                  required
-                  placeholder="e.g. Alex Rivera"
-                  type="text" 
-                  defaultValue="Alex Rivera"
-                  className="w-full mt-1 bg-[#0f1115] border border-white/10 text-xs text-white px-3 py-2.5 rounded-none focus:outline-none focus:border-white/50 transition-all font-medium"
-                />
-              </div>
-
-              {/* Fun Avatar Selector */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[9px] uppercase tracking-widest text-gray-500 font-mono">Select Design Avatar</label>
-                <div className="grid grid-cols-4 gap-2 mt-2">
-                  {[
-                    { val: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80', label: 'Tech Lead' },
-                    { val: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80', label: 'Design Architect' },
-                    { val: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80', label: 'Ecosystem Lead' },
-                    { val: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80', label: 'Principal Fellow' }
-                  ].map((avatarItem, animIdx) => (
-                    <label key={animIdx} className="cursor-pointer relative group flex flex-col items-center">
-                      <input 
-                        type="radio" 
-                        name="auth-avatar" 
-                        value={avatarItem.val} 
-                        defaultChecked={animIdx === 0}
-                        className="sr-only peer"
-                      />
-                      <img 
-                        referrerPolicy="no-referrer"
-                        src={avatarItem.val} 
-                        alt={avatarItem.label} 
-                        className="w-12 h-12 rounded-full border-2 border-transparent object-cover shrink-0 peer-checked:border-white peer-checked:scale-105 transition-all opacity-80 group-hover:opacity-100"
-                      />
-                      <div className="text-[8px] text-gray-500 font-mono mt-1 text-center scale-90 peer-checked:text-white truncate w-full">{avatarItem.label}</div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <button 
-                type="submit"
-                className="w-full mt-4 py-3 bg-white text-black font-bold text-xs uppercase tracking-widest hover:bg-neutral-200 transition-all rounded-none cursor-pointer"
-              >
-                Authenticate Workspace
-              </button>
-
-            </form>
-
-            <div className="text-[10px] text-center text-gray-500 font-mono leading-relaxed px-4">
-              Creates an encrypted local profile instance within your current web browser session space safely.
-            </div>
-
-            <button 
-              type="button"
-              onClick={() => {
-                setActiveTab('editor');
-                triggerToast('Using anonymous developer session', 'info');
-              }}
-              className="text-center text-[10px] text-gray-400 hover:text-white font-mono uppercase tracking-widest underline mt-1"
-            >
-              Cancel & Use Editor
-            </button>
-
-          </motion.div>
-        </div>
-      ) : null}
-
-      {/* Mobile Drawer (Visible on Mobile only with AnimatePresence) */}
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <>
-            {/* Backdrop cover overlay */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="fixed inset-0 bg-black/60 z-[100] md:hidden"
-            />
-
-            {/* Slide-out drawer menu block */}
-            <motion.div
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 24, stiffness: 220 }}
-              className="fixed left-0 top-0 h-full w-[280px] bg-[#121419] border-r border-[#39d353]/15 flex flex-col z-[101] backdrop-blur-xl md:hidden overflow-hidden"
-            >
-              {/* Drawer header segment */}
-              <div className="p-5 border-b border-white/10 flex items-center justify-between bg-[#0d0e12]">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-[#39d353] stroke-[1.5]" stroke="currentColor">
-                      <rect x="2" y="2" width="7" height="7" rx="1" fill="#0e4429" stroke="#39d353" />
-                      <rect x="15" y="2" width="7" height="7" rx="1" fill="#006d32" stroke="#26a641" />
-                      <rect x="2" y="15" width="7" height="7" rx="1" fill="#26a641" stroke="#39d353" strokeDasharray="1 1" />
-                      <circle cx="18" cy="18" r="3.5" fill="#39d353" />
-                    </svg>
-                    <span className="text-[9px] uppercase tracking-[0.2em] text-[#39d353] font-bold font-mono">
-                      Reimagined Pro
-                    </span>
-                  </div>
-                  <div className="text-xl font-bold tracking-tighter uppercase italic font-serif text-white mt-1">
-                    GitGraph <span className="font-extralight not-italic text-sm text-white/50 tracking-[0.1em]">Studio</span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="p-1.5 border border-white/10 hover:border-white/20 text-gray-400 hover:text-white rounded-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#39d353]"
-                  aria-label="Close menu drawer"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Drawer Navigation anchors links */}
-              <div className="flex-1 py-6 flex flex-col gap-1 px-3 overflow-y-auto">
-                {[
-                  { id: 'editor', label: 'Editor', icon: Edit3 },
-                  { id: 'gallery', label: 'Gallery', icon: Grid3X3 },
-                  { id: 'docs', label: 'Documentation', icon: FileText },
-                  { id: 'templates', label: 'Templates', icon: GitBranch },
-                ].map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveTab(item.id as any);
-                        setIsMobileMenuOpen(false);
-                      }}
-                      className={`flex items-center gap-3.5 px-4 py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
-                        activeTab === item.id
-                          ? 'text-white bg-white/5 border-l-2 border-white font-bold'
-                          : 'text-gray-400 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      <Icon className={`w-4 h-4 shrink-0 ${activeTab === item.id ? 'text-white' : 'text-gray-400'}`} />
-                      <span>{item.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Drawer footer controls settings user session */}
-              <div className="p-4 border-t border-white/5 flex flex-col gap-1 px-3 text-left bg-[#0d0e12]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('settings');
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className={`flex items-center gap-3.5 px-4 py-2.5 rounded-none text-xs uppercase tracking-wider font-semibold transition-colors text-left w-full ${
-                    activeTab === 'settings'
-                      ? 'text-white bg-white/5 border-l-2 border-white'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <Settings className="w-4 h-4 shrink-0" />
-                  <span>Settings</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const helpMsg = "GitGraph Studio v1.2.0 • For assistance, view our Documentation or reach out to support@gitgraph-studio.io.";
-                    triggerToast(helpMsg, 'info');
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className="flex items-center gap-3.5 px-4 py-2.5 rounded-none text-xs uppercase tracking-wider font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-left w-full"
-                >
-                  <HelpCircle className="w-4 h-4 text-gray-400 shrink-0" />
-                  <span>Support</span>
-                </button>
-
-                {/* Mobile session avatar details info */}
-                <div
-                  onClick={() => {
-                    if (userSession.isLoggedIn) {
-                      setActiveTab('profile');
-                    } else {
-                      setActiveTab('auth');
-                    }
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className={`mt-4 p-3 bg-[#0f1115]/50 hover:bg-white/5 cursor-pointer border rounded-none flex items-center gap-3 transition-all ${
-                    activeTab === 'profile' || activeTab === 'auth' ? 'border-white' : 'border-white/10 hover:border-white/20'
-                  }`}
-                >
-                  <img
-                    referrerPolicy="no-referrer"
-                    src={userSession.isLoggedIn ? userSession.avatar : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
-                    alt="user avatar"
-                    className="w-8 h-8 rounded-full border border-white/15 scale-100 object-cover shrink-0"
-                  />
-                  <div className="overflow-hidden">
-                    <div className="text-xs font-bold text-white truncate">
-                      {userSession.isLoggedIn ? userSession.username : 'Anonymous'}
-                    </div>
-                    <div className="text-[10px] text-gray-500 font-medium">
-                      {userSession.isLoggedIn ? 'Developer Profile' : 'Click to Sign In'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* SideNavBar Menu column for Desktop with Animating width and collapsible controls */}
-      <motion.nav 
-        initial={false}
-        animate={{ width: sidebarCollapsed ? 72 : 260 }}
-        transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1.0] }}
-        className="fixed left-0 top-0 h-full bg-[#121419]/98 border-r border-white/10 flex flex-col z-40 backdrop-blur-xl hidden md:flex overflow-hidden select-none"
-      >
-        <div className={`p-4 border-b border-white/10 flex flex-col gap-2 relative transition-all ${sidebarCollapsed ? 'items-center' : ''}`}>
-          <div className="flex items-center justify-between w-full">
-            {!sidebarCollapsed ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-[#39d353] stroke-[1.5]" stroke="currentColor">
-                    <rect x="2" y="2" width="7" height="7" rx="1" fill="#0e4429" stroke="#39d353" />
-                    <rect x="15" y="2" width="7" height="7" rx="1" fill="#006d32" stroke="#26a641" />
-                    <rect x="2" y="15" width="7" height="7" rx="1" fill="#26a641" stroke="#39d353" strokeDasharray="1 1" />
-                    <circle cx="18" cy="18" r="3.5" fill="#39d353" />
-                  </svg>
-                  <span className="text-[9px] uppercase tracking-[0.2em] text-[#39d353] font-bold font-mono">
-                    Reimagined Pro
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={toggleSidebar}
-                  className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 border border-white/5 rounded-none cursor-pointer transition-all hover:border-white/10 focus:outline-none focus:ring-1 focus:ring-[#39d353]"
-                  aria-label="Collapse sidebar"
-                  title="Collapse sidebar"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                </button>
-              </>
-            ) : (
-              <div className="flex flex-col items-center gap-3 w-full">
-                <button
-                  type="button"
-                  onClick={toggleSidebar}
-                  className="p-1.5 text-gray-400 hover:text-[#39d353] hover:bg-[#39d353]/10 border border-white/5 rounded-none cursor-pointer transition-all focus:outline-none focus:ring-1 focus:ring-[#39d353]"
-                  aria-label="Expand sidebar"
-                  title="Expand sidebar"
-                >
-                  <Menu className="w-4 h-4 text-[#39d353]" />
-                </button>
-              </div>
-            )}
+      {/* SideNavBar Menu column */}
+      <nav className="fixed left-0 top-0 h-full w-[260px] bg-[#121419]/98 border-r border-white/10 flex flex-col z-40 backdrop-blur-xl">
+        <div className="p-6 border-b border-white/10 flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-[#39d353] stroke-[1.5]" stroke="currentColor">
+              <rect x="2" y="2" width="7" height="7" rx="1" fill="#0e4429" stroke="#39d353" />
+              <rect x="15" y="2" width="7" height="7" rx="1" fill="#006d32" stroke="#26a641" />
+              <rect x="2" y="15" width="7" height="7" rx="1" fill="#26a641" stroke="#39d353" strokeDasharray="1 1" />
+              <circle cx="18" cy="18" r="3.5" fill="#39d353" />
+            </svg>
+            <span className="text-[9px] uppercase tracking-[0.2em] text-[#39d353] font-bold font-mono">
+              Reimagined Pro
+            </span>
           </div>
-          {!sidebarCollapsed && (
-            <div className="text-xl font-bold tracking-tighter uppercase italic font-serif text-white mt-1">
-              GitGraph <span className="font-extralight not-italic text-sm text-white/50 tracking-[0.1em]">Studio</span>
-            </div>
-          )}
+          <div className="text-xl font-bold tracking-tighter uppercase italic font-serif text-white mt-1">
+            GitGraph <span className="font-extralight not-italic text-sm text-white/50 tracking-[0.1em]">Studio</span>
+          </div>
         </div>
 
         {/* Tab links wrapper */}
-        <div className="flex-1 py-8 flex flex-col gap-1.5 px-3">
-          {[
-            { id: 'editor', label: 'Editor', icon: Edit3 },
-            { id: 'gallery', label: 'Gallery', icon: Grid3X3 },
-            { id: 'docs', label: 'Documentation', icon: FileText },
-            { id: 'templates', label: 'Templates', icon: GitBranch },
-          ].map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button 
-                key={item.id}
-                id={`${item.id}-tab-btn`}
-                onClick={() => setActiveTab(item.id as any)}
-                className={`flex items-center group relative gap-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
-                  sidebarCollapsed ? 'justify-center w-11 h-11 mx-auto' : 'px-4 py-3.5 w-full'
-                } ${
-                  isActive 
-                    ? 'text-white bg-white/5 border-l-2 border-white font-bold' 
-                    : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}
-                aria-label={`Go to ${item.label}`}
-              >
-                <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'}`} />
-                {!sidebarCollapsed && <span>{item.label}</span>}
-                {sidebarCollapsed && (
-                  <div className="absolute left-[64px] bg-[#121419] border border-white/10 px-3 py-1.5 text-[10px] text-white uppercase tracking-wider font-mono shadow-2xl rounded-none opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50">
-                    {item.label}
-                  </div>
-                )}
-              </button>
-            );
-          })}
+        <div className="flex-1 py-8 flex flex-col gap-1 px-4">
+          <button 
+            id="editor-tab-btn"
+            onClick={() => setActiveTab('editor')}
+            className={`flex items-center gap-3.5 px-4 py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
+              activeTab === 'editor' 
+                ? 'text-white bg-white/5 border-l-2 border-white font-bold' 
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Edit3 className={`w-4 h-4 ${activeTab === 'editor' ? 'text-white' : 'text-gray-400'}`} />
+            <span>Editor</span>
+          </button>
+
+          <button 
+            id="gallery-tab-btn"
+            onClick={() => setActiveTab('gallery')}
+            className={`flex items-center gap-3.5 px-4 py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
+              activeTab === 'gallery' 
+                ? 'text-white bg-white/5 border-l-2 border-white font-bold' 
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Grid3X3 className={`w-4 h-4 ${activeTab === 'gallery' ? 'text-white' : 'text-gray-400'}`} />
+            <span>Gallery</span>
+          </button>
+
+          <button 
+            id="docs-tab-btn"
+            onClick={() => setActiveTab('docs')}
+            className={`flex items-center gap-3.5 px-4 py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
+              activeTab === 'docs' 
+                ? 'text-white bg-white/5 border-l-2 border-white font-bold' 
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <FileText className={`w-4 h-4 ${activeTab === 'docs' ? 'text-white' : 'text-gray-400'}`} />
+            <span>Documentation</span>
+          </button>
+
+          <button 
+            id="templates-tab-btn"
+            onClick={() => setActiveTab('templates')}
+            className={`flex items-center gap-3.5 px-4 py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
+              activeTab === 'templates' 
+                ? 'text-white bg-white/5 border-l-2 border-white font-bold' 
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <GitBranch className={`w-4 h-4 ${activeTab === 'templates' ? 'text-white' : 'text-gray-400'}`} />
+            <span>Templates</span>
+          </button>
         </div>
 
         {/* Footer info blocks */}
-        <div className="p-4 border-t border-white/5 flex flex-col gap-1.5 px-3 text-left">
+        <div className="p-4 border-t border-white/5 flex flex-col gap-1 px-4 text-left">
           <button 
-            type="button"
             onClick={() => setActiveTab('settings')}
-            className={`flex items-center group relative gap-3.5 rounded-none text-xs uppercase tracking-wider font-semibold transition-colors text-left w-full ${
-              sidebarCollapsed ? 'justify-center w-11 h-11 mx-auto' : 'px-4 py-2.5 w-full'
-            } ${
+            className={`flex items-center gap-3.5 px-4 py-2.5 rounded-none text-xs uppercase tracking-wider font-semibold transition-colors text-left w-full ${
               activeTab === 'settings' 
                 ? 'text-white bg-white/5 border-l-2 border-white' 
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
-            aria-label="Go to settings"
           >
-            <Settings className="w-4 h-4 shrink-0" />
-            {!sidebarCollapsed && <span>Settings</span>}
-            {sidebarCollapsed && (
-              <div className="absolute left-[64px] bg-[#121419] border border-white/10 px-3 py-1.5 text-[10px] text-white uppercase tracking-wider font-mono shadow-2xl rounded-none opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50">
-                Settings
-              </div>
-            )}
+            <Settings className="w-4 h-4" />
+            <span>Settings</span>
           </button>
           
           <button 
-            type="button"
             onClick={() => {
               const helpMsg = "GitGraph Studio v1.2.0 • For assistance, view our Documentation or reach out to support@gitgraph-studio.io.";
               triggerToast(helpMsg, 'info');
             }}
-            className={`flex items-center group relative gap-3.5 rounded-none text-xs uppercase tracking-wider font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-left ${
-              sidebarCollapsed ? 'justify-center w-11 h-11 mx-auto' : 'px-4 py-2.5 w-full'
-            }`}
-            aria-label="Get support assistance"
+            className="flex items-center gap-3.5 px-4 py-2.5 rounded-none text-xs uppercase tracking-wider font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-left w-full"
           >
-            <HelpCircle className="w-4 h-4 shrink-0 text-gray-400" />
-            {!sidebarCollapsed && <span>Support</span>}
-            {sidebarCollapsed && (
-              <div className="absolute left-[64px] bg-[#121419] border border-white/10 px-3 py-1.5 text-[10px] text-white uppercase tracking-wider font-mono shadow-2xl rounded-none opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50">
-                Support Assistance
-              </div>
-            )}
+            <HelpCircle className="w-4 h-4 text-gray-400" />
+            <span>Support</span>
           </button>
 
           {/* Dynamic Active User Profile Widget */}
@@ -1681,10 +1530,8 @@ export default function App() {
                 setActiveTab('auth');
               }
             }}
-            className={`mt-4 bg-[#0f1115]/50 hover:bg-white/5 cursor-pointer border rounded-none flex items-center transition-all ${
-              sidebarCollapsed ? 'justify-center w-11 h-11 mx-auto p-1' : 'p-3 gap-3 w-full'
-            } ${
-              activeTab === 'profile' || activeTab === 'auth' ? 'border-white' : 'border-white/10 hover:border-white/20'
+            className={`mt-4 p-3 bg-[#0f1115]/50 hover:bg-white/5 cursor-pointer border rounded-none flex items-center gap-3 transition-all ${
+              (activeTab as string) === 'profile' || (activeTab as string) === 'auth' ? 'border-white' : 'border-white/10 hover:border-white/20'
             }`}
           >
             <img 
@@ -1693,41 +1540,29 @@ export default function App() {
               alt="user avatar" 
               className="w-8 h-8 rounded-full border border-white/15 scale-100 object-cover shrink-0"
             />
-            {!sidebarCollapsed && (
-              <div className="overflow-hidden">
-                <div className="text-xs font-bold text-white truncate">
-                  {userSession.isLoggedIn ? userSession.username : 'Anonymous'}
-                </div>
-                <div className="text-[10px] text-gray-500 font-medium whitespace-nowrap">
-                  {userSession.isLoggedIn ? 'Developer Profile' : 'Click to Sign In'}
-                </div>
+            <div className="overflow-hidden">
+              <div className="text-xs font-bold text-white truncate">
+                {userSession.isLoggedIn ? userSession.username : 'Anonymous'}
               </div>
-            )}
+              <div className="text-[10px] text-gray-500 font-medium">
+                {userSession.isLoggedIn ? 'Developer Profile' : 'Click to Sign In'}
+              </div>
+            </div>
           </div>
         </div>
-      </motion.nav>
+      </nav>
 
-      {/* Main App Workspace Canvas with responsive collapsible margin padding */}
-      <div className={`flex-1 transition-all duration-300 ${getMainPaddingLeft()} flex flex-col h-full bg-[#0f1115] relative overflow-hidden z-10`}>
+      {/* Main App Workspace Canvas */}
+      <div className="flex-1 pl-[260px] flex flex-col h-full bg-[#0f1115] relative overflow-hidden z-10">
         
         {/* Background Editorial Graphic Decorator skew element */}
         <div className="absolute top-0 right-0 w-[450px] h-full bg-[#16181f]/60 -skew-x-6 transform translate-x-32 z-0 border-l border-white/5 pointer-events-none" />
 
-        {/* TopNavBar Header banner with hamburger menu toggle for responsive devices */}
+        {/* TopNavBar Header banner */}
         <header className="h-14 border-b border-white/10 bg-[#121419]/90 backdrop-blur-md flex justify-between items-center px-6 z-30 sticky top-0 shrink-0">
           {activeTab === 'editor' ? (
             <>
               <div className="flex items-center gap-4 z-10">
-                {/* Mobile hamburger menu toggle */}
-                <button
-                  type="button"
-                  onClick={() => setIsMobileMenuOpen(true)}
-                  className="md:hidden p-1.5 -ml-2 bg-[#161a22] border border-white/10 text-gray-400 hover:text-white rounded-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#39d353] shrink-0"
-                  aria-label="Toggle sidebar menu"
-                >
-                  <Menu className="w-4 h-4" />
-                </button>
-
                 {/* Design Name Editor section */}
                 <div className="flex items-center gap-2 group cursor-pointer py-1 px-2.5 hover:bg-white/5 rounded-none border border-transparent hover:border-white/5 transition-all">
                   <FileText className="w-4 h-4 text-gray-400" />
@@ -1748,12 +1583,12 @@ export default function App() {
                       title="Double click to rename"
                     >
                       <span>{designName}</span>
-                      <Edit3 className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 text-gray-400 transition-all font-mono" />
+                      <Edit3 className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 text-gray-400 transition-all" />
                     </div>
                   )}
                 </div>
 
-                <div className="h-4 w-[1px] bg-white/10 hidden sm:block" />
+                <div className="h-4 w-[1px] bg-white/10" />
 
                 {/* Instant New File Creator Trigger */}
                 <button 
@@ -1762,14 +1597,14 @@ export default function App() {
                     setNewPresetType('blank');
                     setIsNewFileDialogOpen(true);
                   }}
-                  className="flex items-center gap-1.5 py-1.5 px-3 bg-[#181d28]/80 hover:bg-white/5 border border-white/10 hover:border-white/20 text-[10px] uppercase font-mono tracking-wider font-semibold text-[#c7c4d7] hover:text-white transition-all rounded-none cursor-pointer hidden md:flex"
+                  className="flex items-center gap-1.5 py-1.5 px-3 bg-[#181d28]/80 hover:bg-white/5 border border-white/10 hover:border-white/20 text-[10px] uppercase font-mono tracking-wider font-semibold text-[#c7c4d7] hover:text-white transition-all rounded-none cursor-pointer"
                   title="Open New File Workspace"
                 >
                   <Plus className="w-3.5 h-3.5 text-[#39d353]" />
                   <span>New File</span>
                 </button>
 
-                <div className="h-4 w-[1px] bg-white/10 hidden md:block" />
+                <div className="h-4 w-[1px] bg-white/10" />
 
                 {/* Undo Stack and Redo stack controls */}
                 <div className="flex items-center gap-1.5">
@@ -1853,7 +1688,7 @@ export default function App() {
                     className="px-3.5 py-1 bg-[#39d353] text-[#0f1115] hover:bg-[#2eab42] font-semibold text-[10px] rounded-none font-mono tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_12px_rgba(57,211,83,0.2)] hover:shadow-[0_0_20px_rgba(57,211,83,0.4)] border-none"
                     title="Publish current template to community gallery feed publicly"
                   >
-                    <Upload className="w-3.5 h-3.5 text-[#0f1115] stroke-[2.5]" />
+                    <Upload className="w-3 h-3 text-[#0f1115] stroke-[2.5]" />
                     <span>Publish</span>
                   </button>
                 </div>
@@ -1862,21 +1697,12 @@ export default function App() {
           ) : (
             <div className="flex items-center justify-between w-full z-10 py-1">
               <div className="flex items-center gap-2">
-                {/* Mobile hamburger menu toggle */}
-                <button
-                  type="button"
-                  onClick={() => setIsMobileMenuOpen(true)}
-                  className="md:hidden p-1.5 -ml-2 bg-[#161a22] border border-white/10 text-gray-400 hover:text-white rounded-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#39d353] shrink-0 mr-2"
-                  aria-label="Toggle sidebar menu"
-                >
-                  <Menu className="w-4 h-4" />
-                </button>
                 <span className="text-[10px] font-mono uppercase text-gray-400 tracking-[0.25em]">WORKSPACE</span>
                 <span className="text-[10px] font-mono text-gray-600">/</span>
                 <span className="text-[10px] font-mono uppercase text-emerald-400 tracking-[0.25em] font-extrabold">{activeTab}</span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-[10px] font-mono text-gray-500 font-medium hidden sm:inline">Session state:</span>
+                <span className="text-[10px] font-mono text-gray-500 font-medium">Session state:</span>
                 <span className={`text-[10px] font-mono py-0.5 px-2 rounded-none border font-bold ${
                   userSession.isLoggedIn 
                     ? 'border-emerald-500/20 text-emerald-400 bg-emerald-500/5' 
@@ -2007,37 +1833,28 @@ export default function App() {
                   </div>
 
                   <div className="flex flex-col gap-2 text-gray-500">
-                    <Info className="w-4 h-4 hover:text-[#dae3ee] transition-all cursor-help" title="Click & drag to paint on the grid. Paint straight lines with Shape tool." />
+                    <span title="Click & drag to paint on the grid. Paint straight lines with Shape tool." className="cursor-help">
+                      <Info className="w-4 h-4 hover:text-[#dae3ee] transition-all" />
+                    </span>
                   </div>
                 </div>
 
                 {/* MAIN GRID BOARD CANVAS VIEWPORT */}
-                <div className="flex-1 bg-transparent flex flex-col p-8 overflow-auto z-10">
+                <div className="flex-1 bg-transparent flex flex-col items-center justify-center p-8 overflow-auto z-10">
                   
                   {/* Dynamic Scaling Grid Frame */}
                   <div 
                     style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'center' }}
-                    className="m-auto bg-[#121419]/90 border border-white/10 rounded-none p-6 shadow-[0_24px_50px_rgba(0,0,0,0.5)] backdrop-blur-md transition-transform duration-200 z-10 min-w-max"
+                    className="bg-[#121419]/90 border border-white/10 rounded-none p-6 shadow-[0_24px_50px_rgba(0,0,0,0.5)] backdrop-blur-md transition-transform duration-200 z-10"
                   >
                     
-                    {/* Months header tag with absolute offsets mapped precisely to starting weeks of each month */}
-                    <div className="relative h-5 text-[10px] font-mono text-gray-400 mb-2.5 select-none uppercase tracking-[0.12em] font-semibold w-full">
-                      {months.map((m, idx) => {
-                        const startWeeks = [0, 4, 8, 13, 17, 21, 26, 30, 34, 39, 43, 47];
-                        const startWeek = startWeeks[idx];
-                        // 36px represents Mon/Wed/Fri row label width (w-7 is 28px) + gap-2 (8px)
-                        // Each week represents 14px width + 4px gap = 18px total column width
-                        const leftOffset = 36 + (startWeek * 18);
-                        return (
-                          <span 
-                            key={idx} 
-                            className="absolute text-left shrink-0"
-                            style={{ left: `${leftOffset}px` }}
-                          >
-                            {m}
-                          </span>
-                        );
-                      })}
+                    {/* Months header tag */}
+                    <div className="flex text-[10px] font-mono text-gray-400 mb-2.5 pl-[38px] select-none uppercase tracking-[0.12em] font-semibold">
+                      {months.map((m, idx) => (
+                        <span key={idx} className="w-[45px] text-left shrink-0">
+                          {m}
+                        </span>
+                      ))}
                     </div>
 
                     {/* Left Days Label + Core Weeks Matrix container */}
@@ -2487,11 +2304,11 @@ export default function App() {
                                 className="w-full h-full object-cover opacity-80 group-hover:scale-105 group-hover:opacity-100 transition-all duration-300 pointer-events-none"
                               />
                             ) : (
-                              // Fallback Vector Template visualizer block
-                              <div className="w-full h-full relative flex items-center justify-center bg-gradient-to-tr from-[#010409] to-[#161B22] group-hover:from-[#110e24] group-hover:to-[#161b22]">
-                                <GitBranch className="w-14 h-14 text-[#30363D]/80 group-hover:text-primary/70 transition-colors duration-300" strokeWidth={1} />
+                              // Live Vector Template visualizer block
+                              <div className="w-full h-full relative flex items-center justify-center bg-[#010409]">
+                                <GraphPreview pixels={item.pixels} />
                                 <div className="absolute top-3 left-3 flex gap-1">
-                                  <span className="bg-[#2d363e] border border-[#464554]/30 text-[#dae3ee] text-[9px] font-bold px-1.5 py-0.5 rounded uppercase font-mono">
+                                  <span className="bg-[#2d363e] border border-[#464554]/30 text-[#dae3ee] text-[9px] font-bold px-1.5 py-0.5 rounded uppercase font-mono shadow-sm backdrop-blur-sm">
                                     Template
                                   </span>
                                 </div>
@@ -2529,11 +2346,9 @@ export default function App() {
 
                             <div className="flex items-center justify-between mt-auto pt-3 border-t border-[#30363D]/30">
                               <div className="flex items-center gap-2">
-                                <img 
-                                  referrerPolicy="no-referrer"
-                                  src={item.authorAvatar} 
-                                  alt={item.author}
-                                  className="w-5.5 h-5.5 rounded-full border border-[#30363D] object-cover"
+                                <Identicon 
+                                  username={item.author} 
+                                  className="w-5.5 h-5.5 rounded-full border border-[#30363D]"
                                 />
                                 <span className="text-xs font-mono text-[#c7c4d7] font-semibold">@{item.author}</span>
                               </div>
@@ -3273,133 +3088,6 @@ jobs:
               </motion.div>
             )}
 
-            {activeTab === 'auth' && (
-              <motion.div 
-                key="auth"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="w-full h-full flex items-center justify-center p-8 z-10"
-              >
-                <div className="max-w-md w-full bg-[#121419]/95 border border-white/10 rounded-none p-8 shadow-2xl backdrop-blur relative flex flex-col gap-6 text-left">
-                  
-                  {/* Visual Header */}
-                  <div className="text-center">
-                    <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-3">
-                      <FolderLock className="w-5 h-5 text-gray-400" />
-                    </div>
-                    <h2 className="text-xl font-serif italic text-white tracking-tight uppercase">Authorize Dev Workspace</h2>
-                    <p className="text-[10px] text-gray-500 font-mono uppercase tracking-wider mt-1">Configure profile handles and access grid templates</p>
-                  </div>
-
-                  <form 
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      
-                      const formEl = e.currentTarget;
-                      const userVal = (formEl.querySelector('#auth-username') as HTMLInputElement)?.value || 'developer';
-                      const emailVal = (formEl.querySelector('#auth-email') as HTMLInputElement)?.value || 'dev@gitgraph.ai';
-                      const nameVal = (formEl.querySelector('#auth-displayname') as HTMLInputElement)?.value || 'Active Developer';
-                      const avatarVal = (formEl.querySelector('[name="auth-avatar"]:checked') as HTMLInputElement)?.value || 
-                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
-
-                      setUserSession({
-                        username: userVal.toLowerCase().replace(/\s+/g, ''),
-                        email: emailVal,
-                        name: nameVal,
-                        bio: 'Enthusiastic grid compositor. Committed to beautiful graphs and clean visual branches.',
-                        avatar: avatarVal,
-                        isLoggedIn: true
-                      });
-
-                      triggerToast(`Welcome back, ${nameVal}! Session loaded.`, 'success');
-                      setActiveTab('editor');
-                    }}
-                    className="flex flex-col gap-4 text-left"
-                  >
-                    
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[9px] uppercase tracking-widest text-gray-500 font-mono">Username Handle</label>
-                      <input 
-                        id="auth-username"
-                        required
-                        placeholder="e.g. hackercat"
-                        type="text" 
-                        defaultValue="hacker_prime"
-                        className="w-full mt-1 bg-[#0f1115] border border-white/10 text-xs text-white px-3 py-2.5 rounded-none focus:outline-none focus:border-white/50 transition-all font-mono"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[9px] uppercase tracking-widest text-[#a5b4fc] font-mono">Developer Email</label>
-                      <input 
-                        id="auth-email"
-                        required
-                        placeholder="e.g. cats@coder.io"
-                        type="email" 
-                        defaultValue="hack@coder.io"
-                        className="w-full mt-1 bg-[#0f1115] border border-white/10 text-xs text-white px-3 py-2.5 rounded-none focus:outline-none focus:border-white/50 transition-all font-mono"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[9px] uppercase tracking-widest text-[#fda4af] font-mono">Profile Title Name</label>
-                      <input 
-                        id="auth-displayname"
-                        required
-                        placeholder="e.g. Alex Rivera"
-                        type="text" 
-                        defaultValue="Alex Rivera"
-                        className="w-full mt-1 bg-[#0f1115] border border-white/10 text-xs text-white px-3 py-2.5 rounded-none focus:outline-none focus:border-white/50 transition-all font-medium"
-                      />
-                    </div>
-
-                    {/* Fun Avatar Selector! */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[9px] uppercase tracking-widest text-gray-500 font-mono">Select Design Avatar</label>
-                      <div className="grid grid-cols-4 gap-2 mt-2">
-                        {[
-                          { val: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80', label: 'Tech Lead' },
-                          { val: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80', label: 'Design Architect' },
-                          { val: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80', label: 'Ecosystem Lead' },
-                          { val: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80', label: 'Principal Fellow' }
-                        ].map((avatarItem, animIdx) => (
-                          <label key={animIdx} className="cursor-pointer relative group flex flex-col items-center">
-                            <input 
-                              type="radio" 
-                              name="auth-avatar" 
-                              value={avatarItem.val} 
-                              defaultChecked={animIdx === 0}
-                              className="sr-only peer"
-                            />
-                            <img 
-                              referrerPolicy="no-referrer"
-                              src={avatarItem.val} 
-                              alt={avatarItem.label} 
-                              className="w-12 h-12 rounded-full border-2 border-transparent object-cover shrink-0 peer-checked:border-white peer-checked:scale-105 transition-all opacity-80 group-hover:opacity-100"
-                            />
-                            <div className="text-[8px] text-gray-500 font-mono mt-1 text-center scale-90 peer-checked:text-white truncate w-full">{avatarItem.label}</div>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button 
-                      type="submit"
-                      className="w-full mt-4 py-3 bg-white text-black font-bold text-xs uppercase tracking-widest hover:bg-neutral-200 transition-all rounded-none cursor-pointer"
-                    >
-                      Authenticate Workspace
-                    </button>
-
-                  </form>
-
-                  <div className="text-[10px] text-center text-gray-500 font-mono leading-relaxed px-4">
-                    Creates an encrypted local profile instance within your current web browser session space safely.
-                  </div>
-
-                </div>
-              </motion.div>
-            )}
 
           </AnimatePresence>
 

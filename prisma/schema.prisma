@@ -1,0 +1,210 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// NextAuth Adapter Models
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?   @map("avatar")
+  username      String?   @unique
+  bio           String?   @db.Text
+  hashedPassword String?  @db.Text  // For email/password credentials auth
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  designs       Design[]
+  likes         Like[]
+  bookmarks     Bookmark[]
+  comments      Comment[]
+  forks         Fork[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// GitGraph Studio Application Models
+
+model Design {
+  id           String   @id @default(cuid())
+  title        String
+  description  String?  @db.Text
+  graphData    Json     // Active contribution grid nodes
+  startDate    DateTime?
+  endDate      DateTime?
+  previewImage String?
+  visibility   String   @default("PUBLIC") // DRAFT, PUBLIC, UNPUBLISHED
+
+  creatorId    String
+  creator      User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  parentId     String?
+  parent       Design?  @relation("DesignForksSelf", fields: [parentId], references: [id], onDelete: SetNull)
+  forks        Design[] @relation("DesignForksSelf")
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  versions     DesignVersion[]
+  likes        Like[]
+  bookmarks    Bookmark[]
+  comments     Comment[]
+  tags         DesignTag[]
+  views        View[]
+  forkRecords       Fork[] @relation("ForksAsParent")
+  forkedFromRecords Fork[] @relation("ForksAsChild")
+
+  @@index([creatorId])
+  @@index([parentId])
+}
+
+model DesignVersion {
+  id        String   @id @default(cuid())
+  designId  String
+  design    Design   @relation(fields: [designId], references: [id], onDelete: Cascade)
+  graphData Json
+  createdAt DateTime @default(now())
+
+  @@index([designId])
+}
+
+model Like {
+  userId    String
+  designId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  design Design @relation(fields: [designId], references: [id], onDelete: Cascade)
+
+  @@id([userId, designId])
+  @@index([designId])
+  @@index([userId])
+}
+
+model Bookmark {
+  userId    String
+  designId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  design Design @relation(fields: [designId], references: [id], onDelete: Cascade)
+
+  @@id([userId, designId])
+  @@index([designId])
+  @@index([userId])
+}
+
+model Fork {
+  id        String   @id @default(cuid())
+  parentId  String
+  parent    Design   @relation("ForksAsParent", fields: [parentId], references: [id], onDelete: Cascade)
+  childId   String
+  child     Design   @relation("ForksAsChild", fields: [childId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([parentId])
+  @@index([childId])
+  @@index([userId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  text      String   @db.Text
+  userId    String
+  designId  String
+  parentId  String?
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  design    Design   @relation(fields: [designId], references: [id], onDelete: Cascade)
+  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([designId])
+  @@index([parentId])
+}
+
+model Tag {
+  id      String      @id @default(cuid())
+  name    String      @unique
+  designs DesignTag[]
+}
+
+model DesignTag {
+  designId String
+  tagId    String
+
+  design Design @relation(fields: [designId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([designId, tagId])
+  @@index([tagId])
+  @@index([designId])
+}
+
+model View {
+  id        String   @id @default(cuid())
+  designId  String
+  visitorId String?
+  createdAt DateTime @default(now())
+
+  design Design @relation(fields: [designId], references: [id], onDelete: Cascade)
+
+  @@index([designId])
+}
