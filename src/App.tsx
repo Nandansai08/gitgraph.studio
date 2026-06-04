@@ -30,6 +30,9 @@ import {
   Info, 
   Check, 
   ChevronDown, 
+  ChevronLeft,
+  ChevronRight,
+  Menu, 
   Github, 
   FolderLock, 
   User, 
@@ -254,6 +257,54 @@ export default function App() {
   // Dialog Open States
   const [isNewFileDialogOpen, setIsNewFileDialogOpen] = useState<boolean>(false);
   const [isPublishToGalleryDialogOpen, setIsPublishToGalleryDialogOpen] = useState<boolean>(false);
+
+  // Sidebar states
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    const saved = localStorage.getItem('gitgraph_sidebar_collapsed');
+    if (saved !== null) {
+      return saved === 'true';
+    }
+    if (typeof window !== 'undefined') {
+      return window.innerWidth <= 1024;
+    }
+    return false;
+  });
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+  const [isTablet, setIsTablet] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const width = window.innerWidth;
+      const mobile = width < 768;
+      const tablet = width >= 768 && width <= 1024;
+      setIsMobile(mobile);
+      setIsTablet(tablet);
+      
+      if (tablet) {
+        const saved = localStorage.getItem('gitgraph_sidebar_collapsed');
+        if (saved === null) {
+          setSidebarCollapsed(true);
+        }
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('gitgraph_sidebar_collapsed', String(next));
+      return next;
+    });
+  };
+
+  const getMainPaddingLeft = () => {
+    if (isMobile) return 'pl-0';
+    return sidebarCollapsed ? 'pl-[72px]' : 'pl-[260px]';
+  };
   
   // Custom Created designs that are loaded in local storage gallery
   const [customGalleryItems, setCustomGalleryItems] = useState<GalleryItem[]>(() => {
@@ -1343,103 +1394,282 @@ export default function App() {
         </div>
       ) : null}
 
-      {/* SideNavBar Menu column */}
-      <nav className="fixed left-0 top-0 h-full w-[260px] bg-[#121419]/98 border-r border-white/10 flex flex-col z-40 backdrop-blur-xl">
-        <div className="p-6 border-b border-white/10 flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-[#39d353] stroke-[1.5]" stroke="currentColor">
-              <rect x="2" y="2" width="7" height="7" rx="1" fill="#0e4429" stroke="#39d353" />
-              <rect x="15" y="2" width="7" height="7" rx="1" fill="#006d32" stroke="#26a641" />
-              <rect x="2" y="15" width="7" height="7" rx="1" fill="#26a641" stroke="#39d353" strokeDasharray="1 1" />
-              <circle cx="18" cy="18" r="3.5" fill="#39d353" />
-            </svg>
-            <span className="text-[9px] uppercase tracking-[0.2em] text-[#39d353] font-bold font-mono">
-              Reimagined Pro
-            </span>
+      {/* Mobile Drawer (Visible on Mobile only with AnimatePresence) */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            {/* Backdrop cover overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/60 z-[100] md:hidden"
+            />
+
+            {/* Slide-out drawer menu block */}
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 24, stiffness: 220 }}
+              className="fixed left-0 top-0 h-full w-[280px] bg-[#121419] border-r border-[#39d353]/15 flex flex-col z-[101] backdrop-blur-xl md:hidden overflow-hidden"
+            >
+              {/* Drawer header segment */}
+              <div className="p-5 border-b border-white/10 flex items-center justify-between bg-[#0d0e12]">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-[#39d353] stroke-[1.5]" stroke="currentColor">
+                      <rect x="2" y="2" width="7" height="7" rx="1" fill="#0e4429" stroke="#39d353" />
+                      <rect x="15" y="2" width="7" height="7" rx="1" fill="#006d32" stroke="#26a641" />
+                      <rect x="2" y="15" width="7" height="7" rx="1" fill="#26a641" stroke="#39d353" strokeDasharray="1 1" />
+                      <circle cx="18" cy="18" r="3.5" fill="#39d353" />
+                    </svg>
+                    <span className="text-[9px] uppercase tracking-[0.2em] text-[#39d353] font-bold font-mono">
+                      Reimagined Pro
+                    </span>
+                  </div>
+                  <div className="text-xl font-bold tracking-tighter uppercase italic font-serif text-white mt-1">
+                    GitGraph <span className="font-extralight not-italic text-sm text-white/50 tracking-[0.1em]">Studio</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-1.5 border border-white/10 hover:border-white/20 text-gray-400 hover:text-white rounded-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#39d353]"
+                  aria-label="Close menu drawer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Drawer Navigation anchors links */}
+              <div className="flex-1 py-6 flex flex-col gap-1 px-3 overflow-y-auto">
+                {[
+                  { id: 'editor', label: 'Editor', icon: Edit3 },
+                  { id: 'gallery', label: 'Gallery', icon: Grid3X3 },
+                  { id: 'docs', label: 'Documentation', icon: FileText },
+                  { id: 'templates', label: 'Templates', icon: GitBranch },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveTab(item.id as any);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={`flex items-center gap-3.5 px-4 py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
+                        activeTab === item.id
+                          ? 'text-white bg-white/5 border-l-2 border-white font-bold'
+                          : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <Icon className={`w-4 h-4 shrink-0 ${activeTab === item.id ? 'text-white' : 'text-gray-400'}`} />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Drawer footer controls settings user session */}
+              <div className="p-4 border-t border-white/5 flex flex-col gap-1 px-3 text-left bg-[#0d0e12]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('settings');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`flex items-center gap-3.5 px-4 py-2.5 rounded-none text-xs uppercase tracking-wider font-semibold transition-colors text-left w-full ${
+                    activeTab === 'settings'
+                      ? 'text-white bg-white/5 border-l-2 border-white'
+                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <Settings className="w-4 h-4 shrink-0" />
+                  <span>Settings</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const helpMsg = "GitGraph Studio v1.2.0 • For assistance, view our Documentation or reach out to support@gitgraph-studio.io.";
+                    triggerToast(helpMsg, 'info');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-3.5 px-4 py-2.5 rounded-none text-xs uppercase tracking-wider font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-left w-full"
+                >
+                  <HelpCircle className="w-4 h-4 text-gray-400 shrink-0" />
+                  <span>Support</span>
+                </button>
+
+                {/* Mobile session avatar details info */}
+                <div
+                  onClick={() => {
+                    if (userSession.isLoggedIn) {
+                      setActiveTab('profile');
+                    } else {
+                      setActiveTab('auth');
+                    }
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`mt-4 p-3 bg-[#0f1115]/50 hover:bg-white/5 cursor-pointer border rounded-none flex items-center gap-3 transition-all ${
+                    activeTab === 'profile' || activeTab === 'auth' ? 'border-white' : 'border-white/10 hover:border-white/20'
+                  }`}
+                >
+                  <img
+                    referrerPolicy="no-referrer"
+                    src={userSession.isLoggedIn ? userSession.avatar : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+                    alt="user avatar"
+                    className="w-8 h-8 rounded-full border border-white/15 scale-100 object-cover shrink-0"
+                  />
+                  <div className="overflow-hidden">
+                    <div className="text-xs font-bold text-white truncate">
+                      {userSession.isLoggedIn ? userSession.username : 'Anonymous'}
+                    </div>
+                    <div className="text-[10px] text-gray-500 font-medium">
+                      {userSession.isLoggedIn ? 'Developer Profile' : 'Click to Sign In'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* SideNavBar Menu column for Desktop with Animating width and collapsible controls */}
+      <motion.nav 
+        initial={false}
+        animate={{ width: sidebarCollapsed ? 72 : 260 }}
+        transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1.0] }}
+        className="fixed left-0 top-0 h-full bg-[#121419]/98 border-r border-white/10 flex flex-col z-40 backdrop-blur-xl hidden md:flex overflow-hidden select-none"
+      >
+        <div className={`p-4 border-b border-white/10 flex flex-col gap-2 relative transition-all ${sidebarCollapsed ? 'items-center' : ''}`}>
+          <div className="flex items-center justify-between w-full">
+            {!sidebarCollapsed ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-[#39d353] stroke-[1.5]" stroke="currentColor">
+                    <rect x="2" y="2" width="7" height="7" rx="1" fill="#0e4429" stroke="#39d353" />
+                    <rect x="15" y="2" width="7" height="7" rx="1" fill="#006d32" stroke="#26a641" />
+                    <rect x="2" y="15" width="7" height="7" rx="1" fill="#26a641" stroke="#39d353" strokeDasharray="1 1" />
+                    <circle cx="18" cy="18" r="3.5" fill="#39d353" />
+                  </svg>
+                  <span className="text-[9px] uppercase tracking-[0.2em] text-[#39d353] font-bold font-mono">
+                    Reimagined Pro
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className="p-1.5 text-gray-400 hover:text-white hover:bg-white/5 border border-white/5 rounded-none cursor-pointer transition-all hover:border-white/10 focus:outline-none focus:ring-1 focus:ring-[#39d353]"
+                  aria-label="Collapse sidebar"
+                  title="Collapse sidebar"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-3 w-full">
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className="p-1.5 text-gray-400 hover:text-[#39d353] hover:bg-[#39d353]/10 border border-white/5 rounded-none cursor-pointer transition-all focus:outline-none focus:ring-1 focus:ring-[#39d353]"
+                  aria-label="Expand sidebar"
+                  title="Expand sidebar"
+                >
+                  <Menu className="w-4 h-4 text-[#39d353]" />
+                </button>
+              </div>
+            )}
           </div>
-          <div className="text-xl font-bold tracking-tighter uppercase italic font-serif text-white mt-1">
-            GitGraph <span className="font-extralight not-italic text-sm text-white/50 tracking-[0.1em]">Studio</span>
-          </div>
+          {!sidebarCollapsed && (
+            <div className="text-xl font-bold tracking-tighter uppercase italic font-serif text-white mt-1">
+              GitGraph <span className="font-extralight not-italic text-sm text-white/50 tracking-[0.1em]">Studio</span>
+            </div>
+          )}
         </div>
 
         {/* Tab links wrapper */}
-        <div className="flex-1 py-8 flex flex-col gap-1 px-4">
-          <button 
-            id="editor-tab-btn"
-            onClick={() => setActiveTab('editor')}
-            className={`flex items-center gap-3.5 px-4 py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
-              activeTab === 'editor' 
-                ? 'text-white bg-white/5 border-l-2 border-white font-bold' 
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Edit3 className={`w-4 h-4 ${activeTab === 'editor' ? 'text-white' : 'text-gray-400'}`} />
-            <span>Editor</span>
-          </button>
-
-          <button 
-            id="gallery-tab-btn"
-            onClick={() => setActiveTab('gallery')}
-            className={`flex items-center gap-3.5 px-4 py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
-              activeTab === 'gallery' 
-                ? 'text-white bg-white/5 border-l-2 border-white font-bold' 
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Grid3X3 className={`w-4 h-4 ${activeTab === 'gallery' ? 'text-white' : 'text-gray-400'}`} />
-            <span>Gallery</span>
-          </button>
-
-          <button 
-            id="docs-tab-btn"
-            onClick={() => setActiveTab('docs')}
-            className={`flex items-center gap-3.5 px-4 py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
-              activeTab === 'docs' 
-                ? 'text-white bg-white/5 border-l-2 border-white font-bold' 
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <FileText className={`w-4 h-4 ${activeTab === 'docs' ? 'text-white' : 'text-gray-400'}`} />
-            <span>Documentation</span>
-          </button>
-
-          <button 
-            id="templates-tab-btn"
-            onClick={() => setActiveTab('templates')}
-            className={`flex items-center gap-3.5 px-4 py-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
-              activeTab === 'templates' 
-                ? 'text-white bg-white/5 border-l-2 border-white font-bold' 
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <GitBranch className={`w-4 h-4 ${activeTab === 'templates' ? 'text-white' : 'text-gray-400'}`} />
-            <span>Templates</span>
-          </button>
+        <div className="flex-1 py-8 flex flex-col gap-1.5 px-3">
+          {[
+            { id: 'editor', label: 'Editor', icon: Edit3 },
+            { id: 'gallery', label: 'Gallery', icon: Grid3X3 },
+            { id: 'docs', label: 'Documentation', icon: FileText },
+            { id: 'templates', label: 'Templates', icon: GitBranch },
+          ].map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button 
+                key={item.id}
+                id={`${item.id}-tab-btn`}
+                onClick={() => setActiveTab(item.id as any)}
+                className={`flex items-center group relative gap-3.5 rounded-none text-xs uppercase tracking-[0.15em] font-medium transition-all duration-200 text-left ${
+                  sidebarCollapsed ? 'justify-center w-11 h-11 mx-auto' : 'px-4 py-3.5 w-full'
+                } ${
+                  isActive 
+                    ? 'text-white bg-white/5 border-l-2 border-white font-bold' 
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+                aria-label={`Go to ${item.label}`}
+              >
+                <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'}`} />
+                {!sidebarCollapsed && <span>{item.label}</span>}
+                {sidebarCollapsed && (
+                  <div className="absolute left-[64px] bg-[#121419] border border-white/10 px-3 py-1.5 text-[10px] text-white uppercase tracking-wider font-mono shadow-2xl rounded-none opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50">
+                    {item.label}
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Footer info blocks */}
-        <div className="p-4 border-t border-white/5 flex flex-col gap-1 px-4 text-left">
+        <div className="p-4 border-t border-white/5 flex flex-col gap-1.5 px-3 text-left">
           <button 
+            type="button"
             onClick={() => setActiveTab('settings')}
-            className={`flex items-center gap-3.5 px-4 py-2.5 rounded-none text-xs uppercase tracking-wider font-semibold transition-colors text-left w-full ${
+            className={`flex items-center group relative gap-3.5 rounded-none text-xs uppercase tracking-wider font-semibold transition-colors text-left w-full ${
+              sidebarCollapsed ? 'justify-center w-11 h-11 mx-auto' : 'px-4 py-2.5 w-full'
+            } ${
               activeTab === 'settings' 
                 ? 'text-white bg-white/5 border-l-2 border-white' 
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
+            aria-label="Go to settings"
           >
-            <Settings className="w-4 h-4" />
-            <span>Settings</span>
+            <Settings className="w-4 h-4 shrink-0" />
+            {!sidebarCollapsed && <span>Settings</span>}
+            {sidebarCollapsed && (
+              <div className="absolute left-[64px] bg-[#121419] border border-white/10 px-3 py-1.5 text-[10px] text-white uppercase tracking-wider font-mono shadow-2xl rounded-none opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50">
+                Settings
+              </div>
+            )}
           </button>
           
           <button 
+            type="button"
             onClick={() => {
               const helpMsg = "GitGraph Studio v1.2.0 • For assistance, view our Documentation or reach out to support@gitgraph-studio.io.";
               triggerToast(helpMsg, 'info');
             }}
-            className="flex items-center gap-3.5 px-4 py-2.5 rounded-none text-xs uppercase tracking-wider font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-left w-full"
+            className={`flex items-center group relative gap-3.5 rounded-none text-xs uppercase tracking-wider font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-left ${
+              sidebarCollapsed ? 'justify-center w-11 h-11 mx-auto' : 'px-4 py-2.5 w-full'
+            }`}
+            aria-label="Get support assistance"
           >
-            <HelpCircle className="w-4 h-4 text-gray-400" />
-            <span>Support</span>
+            <HelpCircle className="w-4 h-4 shrink-0 text-gray-400" />
+            {!sidebarCollapsed && <span>Support</span>}
+            {sidebarCollapsed && (
+              <div className="absolute left-[64px] bg-[#121419] border border-white/10 px-3 py-1.5 text-[10px] text-white uppercase tracking-wider font-mono shadow-2xl rounded-none opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50">
+                Support Assistance
+              </div>
+            )}
           </button>
 
           {/* Dynamic Active User Profile Widget */}
@@ -1451,7 +1681,9 @@ export default function App() {
                 setActiveTab('auth');
               }
             }}
-            className={`mt-4 p-3 bg-[#0f1115]/50 hover:bg-white/5 cursor-pointer border rounded-none flex items-center gap-3 transition-all ${
+            className={`mt-4 bg-[#0f1115]/50 hover:bg-white/5 cursor-pointer border rounded-none flex items-center transition-all ${
+              sidebarCollapsed ? 'justify-center w-11 h-11 mx-auto p-1' : 'p-3 gap-3 w-full'
+            } ${
               activeTab === 'profile' || activeTab === 'auth' ? 'border-white' : 'border-white/10 hover:border-white/20'
             }`}
           >
@@ -1461,29 +1693,41 @@ export default function App() {
               alt="user avatar" 
               className="w-8 h-8 rounded-full border border-white/15 scale-100 object-cover shrink-0"
             />
-            <div className="overflow-hidden">
-              <div className="text-xs font-bold text-white truncate">
-                {userSession.isLoggedIn ? userSession.username : 'Anonymous'}
+            {!sidebarCollapsed && (
+              <div className="overflow-hidden">
+                <div className="text-xs font-bold text-white truncate">
+                  {userSession.isLoggedIn ? userSession.username : 'Anonymous'}
+                </div>
+                <div className="text-[10px] text-gray-500 font-medium whitespace-nowrap">
+                  {userSession.isLoggedIn ? 'Developer Profile' : 'Click to Sign In'}
+                </div>
               </div>
-              <div className="text-[10px] text-gray-500 font-medium">
-                {userSession.isLoggedIn ? 'Developer Profile' : 'Click to Sign In'}
-              </div>
-            </div>
+            )}
           </div>
         </div>
-      </nav>
+      </motion.nav>
 
-      {/* Main App Workspace Canvas */}
-      <div className="flex-1 pl-[260px] flex flex-col h-full bg-[#0f1115] relative overflow-hidden z-10">
+      {/* Main App Workspace Canvas with responsive collapsible margin padding */}
+      <div className={`flex-1 transition-all duration-300 ${getMainPaddingLeft()} flex flex-col h-full bg-[#0f1115] relative overflow-hidden z-10`}>
         
         {/* Background Editorial Graphic Decorator skew element */}
         <div className="absolute top-0 right-0 w-[450px] h-full bg-[#16181f]/60 -skew-x-6 transform translate-x-32 z-0 border-l border-white/5 pointer-events-none" />
 
-        {/* TopNavBar Header banner */}
+        {/* TopNavBar Header banner with hamburger menu toggle for responsive devices */}
         <header className="h-14 border-b border-white/10 bg-[#121419]/90 backdrop-blur-md flex justify-between items-center px-6 z-30 sticky top-0 shrink-0">
           {activeTab === 'editor' ? (
             <>
               <div className="flex items-center gap-4 z-10">
+                {/* Mobile hamburger menu toggle */}
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMenuOpen(true)}
+                  className="md:hidden p-1.5 -ml-2 bg-[#161a22] border border-white/10 text-gray-400 hover:text-white rounded-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#39d353] shrink-0"
+                  aria-label="Toggle sidebar menu"
+                >
+                  <Menu className="w-4 h-4" />
+                </button>
+
                 {/* Design Name Editor section */}
                 <div className="flex items-center gap-2 group cursor-pointer py-1 px-2.5 hover:bg-white/5 rounded-none border border-transparent hover:border-white/5 transition-all">
                   <FileText className="w-4 h-4 text-gray-400" />
@@ -1504,12 +1748,12 @@ export default function App() {
                       title="Double click to rename"
                     >
                       <span>{designName}</span>
-                      <Edit3 className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 text-gray-400 transition-all" />
+                      <Edit3 className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 text-gray-400 transition-all font-mono" />
                     </div>
                   )}
                 </div>
 
-                <div className="h-4 w-[1px] bg-white/10" />
+                <div className="h-4 w-[1px] bg-white/10 hidden sm:block" />
 
                 {/* Instant New File Creator Trigger */}
                 <button 
@@ -1518,14 +1762,14 @@ export default function App() {
                     setNewPresetType('blank');
                     setIsNewFileDialogOpen(true);
                   }}
-                  className="flex items-center gap-1.5 py-1.5 px-3 bg-[#181d28]/80 hover:bg-white/5 border border-white/10 hover:border-white/20 text-[10px] uppercase font-mono tracking-wider font-semibold text-[#c7c4d7] hover:text-white transition-all rounded-none cursor-pointer"
+                  className="flex items-center gap-1.5 py-1.5 px-3 bg-[#181d28]/80 hover:bg-white/5 border border-white/10 hover:border-white/20 text-[10px] uppercase font-mono tracking-wider font-semibold text-[#c7c4d7] hover:text-white transition-all rounded-none cursor-pointer hidden md:flex"
                   title="Open New File Workspace"
                 >
                   <Plus className="w-3.5 h-3.5 text-[#39d353]" />
                   <span>New File</span>
                 </button>
 
-                <div className="h-4 w-[1px] bg-white/10" />
+                <div className="h-4 w-[1px] bg-white/10 hidden md:block" />
 
                 {/* Undo Stack and Redo stack controls */}
                 <div className="flex items-center gap-1.5">
@@ -1609,7 +1853,7 @@ export default function App() {
                     className="px-3.5 py-1 bg-[#39d353] text-[#0f1115] hover:bg-[#2eab42] font-semibold text-[10px] rounded-none font-mono tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_12px_rgba(57,211,83,0.2)] hover:shadow-[0_0_20px_rgba(57,211,83,0.4)] border-none"
                     title="Publish current template to community gallery feed publicly"
                   >
-                    <Upload className="w-3 h-3 text-[#0f1115] stroke-[2.5]" />
+                    <Upload className="w-3.5 h-3.5 text-[#0f1115] stroke-[2.5]" />
                     <span>Publish</span>
                   </button>
                 </div>
@@ -1618,12 +1862,21 @@ export default function App() {
           ) : (
             <div className="flex items-center justify-between w-full z-10 py-1">
               <div className="flex items-center gap-2">
+                {/* Mobile hamburger menu toggle */}
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMenuOpen(true)}
+                  className="md:hidden p-1.5 -ml-2 bg-[#161a22] border border-white/10 text-gray-400 hover:text-white rounded-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#39d353] shrink-0 mr-2"
+                  aria-label="Toggle sidebar menu"
+                >
+                  <Menu className="w-4 h-4" />
+                </button>
                 <span className="text-[10px] font-mono uppercase text-gray-400 tracking-[0.25em]">WORKSPACE</span>
                 <span className="text-[10px] font-mono text-gray-600">/</span>
                 <span className="text-[10px] font-mono uppercase text-emerald-400 tracking-[0.25em] font-extrabold">{activeTab}</span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-[10px] font-mono text-gray-500 font-medium">Session state:</span>
+                <span className="text-[10px] font-mono text-gray-500 font-medium hidden sm:inline">Session state:</span>
                 <span className={`text-[10px] font-mono py-0.5 px-2 rounded-none border font-bold ${
                   userSession.isLoggedIn 
                     ? 'border-emerald-500/20 text-emerald-400 bg-emerald-500/5' 
@@ -1759,21 +2012,32 @@ export default function App() {
                 </div>
 
                 {/* MAIN GRID BOARD CANVAS VIEWPORT */}
-                <div className="flex-1 bg-transparent flex flex-col items-center justify-center p-8 overflow-auto z-10">
+                <div className="flex-1 bg-transparent flex flex-col p-8 overflow-auto z-10">
                   
                   {/* Dynamic Scaling Grid Frame */}
                   <div 
                     style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'center' }}
-                    className="bg-[#121419]/90 border border-white/10 rounded-none p-6 shadow-[0_24px_50px_rgba(0,0,0,0.5)] backdrop-blur-md transition-transform duration-200 z-10"
+                    className="m-auto bg-[#121419]/90 border border-white/10 rounded-none p-6 shadow-[0_24px_50px_rgba(0,0,0,0.5)] backdrop-blur-md transition-transform duration-200 z-10 min-w-max"
                   >
                     
-                    {/* Months header tag */}
-                    <div className="flex text-[10px] font-mono text-gray-400 mb-2.5 pl-[38px] select-none uppercase tracking-[0.12em] font-semibold">
-                      {months.map((m, idx) => (
-                        <span key={idx} className="w-[45px] text-left shrink-0">
-                          {m}
-                        </span>
-                      ))}
+                    {/* Months header tag with absolute offsets mapped precisely to starting weeks of each month */}
+                    <div className="relative h-5 text-[10px] font-mono text-gray-400 mb-2.5 select-none uppercase tracking-[0.12em] font-semibold w-full">
+                      {months.map((m, idx) => {
+                        const startWeeks = [0, 4, 8, 13, 17, 21, 26, 30, 34, 39, 43, 47];
+                        const startWeek = startWeeks[idx];
+                        // 36px represents Mon/Wed/Fri row label width (w-7 is 28px) + gap-2 (8px)
+                        // Each week represents 14px width + 4px gap = 18px total column width
+                        const leftOffset = 36 + (startWeek * 18);
+                        return (
+                          <span 
+                            key={idx} 
+                            className="absolute text-left shrink-0"
+                            style={{ left: `${leftOffset}px` }}
+                          >
+                            {m}
+                          </span>
+                        );
+                      })}
                     </div>
 
                     {/* Left Days Label + Core Weeks Matrix container */}
