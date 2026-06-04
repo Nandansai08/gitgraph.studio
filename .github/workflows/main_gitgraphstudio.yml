@@ -40,6 +40,7 @@ jobs:
           path: .
 
   deploy:
+    if: ${{ secrets.AZURE_CREDENTIALS }}
     runs-on: ubuntu-latest
     needs: build
     permissions:
@@ -55,9 +56,7 @@ jobs:
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_019020EE8AEA4CD394B8D00EF2733B58 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_EB1DECD2E83B43D38D381FDA23764FEF }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_74853737ACA747DF9BA9C2216809F663 }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
