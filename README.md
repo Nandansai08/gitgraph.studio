@@ -24,10 +24,30 @@ Create names, logos, symbols, and pixel art for your GitHub activity heatmap usi
 
 </div>
 
+![Editor Demo](./docs/screenshots/editor-demo.gif)
+
 ---
 
-<!-- Add a screenshot or GIF of your editor here -->
-<!-- ![GitGraph Studio Screenshot](assets/screenshot.png) -->
+## 📸 Screenshots
+
+Below are the screenshots showcasing the features of GitGraph Studio:
+
+### 1. Landing Page / Workflow Setup
+![Landing Page](./docs/screenshots/landing-page.png)
+
+### 2. Contribution Graph Editor
+![Graph Editor](./docs/screenshots/editor.png)
+
+### 3. Customization & settings
+![Import Export](./docs/screenshots/import-export.png)
+
+### 4. Authentication
+![Authentication](./docs/screenshots/auth.png)
+
+### 5. Community Gallery
+![Gallery](./docs/screenshots/gallery.png)
+
+---
 
 ## ✨ What is GitGraph Studio?
 
@@ -69,16 +89,28 @@ Export your designs as JSON and import them later. Share designs with others eff
 ### 🌐 Community Gallery
 Browse, remix, fork, like, and bookmark community-created designs. Get inspired by others.
 
+![Community Gallery Trending Templates](./docs/screenshots/gallery.png)
+
 ### 🔄 Fork & Remix
 Found a design you love? Fork it, make it yours, and publish your own version.
 
 </td>
 </tr>
 </table>
-
 ### ⚡ GitHub Actions Integration
-
 Generate a GitHub Actions workflow that automates commits to produce your designed pattern on your contribution graph — **set it and forget it**.
+
+![GitHub Actions Workflow Automation](./docs/screenshots/landing-page.png)
+
+### 🎨 Visual Theme Customizer & Settings
+Personalize your editor workspace with custom coordinate color palettes (Emerald Classic, Slate Monochrome, Cyber Indigo, Amber Sunset, Crimson Power) and fine-grained grid interactivity options.
+
+![System Settings Dashboard](./docs/screenshots/import-export.png)
+
+### 🌐 Discover & Search Community Designs
+Find trending patterns, search by author or title, and instantly load designs into your editor canvas to remix them.
+
+![Discover and Search Gallery Banner](./docs/screenshots/gallery-banner.png)
 
 ---
 

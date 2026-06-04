@@ -52,6 +52,8 @@ Allows users to browse public contribution designs, submit their own to the gall
 - **Fork Action**: Clones an existing design, assigns ownership to the current user, and increments the fork counters.
 - **SVG Rendering Engine**: Dynamically generates visual contribution grid previews directly on the server to render as standard SVGs inside cards, preventing layout shifts.
 
+![Community Gallery Interface](screenshots/gallery.png)
+
 ### 3. Database Schema (`prisma/schema.prisma`)
 The PostgreSQL database consists of several core tables to handle users, profiles, designs, interactions, and session logs:
 - **`User` / `Account` / `Session`**: Auth.js tables mapping social identities.
