@@ -167,10 +167,24 @@ function getFallbackPresets(tag: string, query: string) {
   return filtered;
 }
 
+function buildFallbackResponse(presets: typeof PRESET_DESIGNS, page: number, limit: number, skip: number) {
+  const totalItems = presets.length;
+  const totalPages = Math.ceil(totalItems / limit);
+  return NextResponse.json({
+    designs: presets.slice(skip, skip + limit),
+    pagination: {
+      page,
+      totalPages,
+      totalItems,
+      hasNextPage: page < totalPages,
+    },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const page = parseInt(searchParams.get("page") || "1", 10);
-  const limit = 12;
+  const page = Math.max(parseInt(searchParams.get("page") || "1", 10) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "12", 10) || 12, 1), 100);
   const skip = (page - 1) * limit;
 
   const sort = searchParams.get("sort") || "trending";
@@ -271,15 +285,7 @@ export async function GET(request: NextRequest) {
 
     // If the database is empty, return local preset designs as fallback
     if (totalCount === 0) {
-      const presets = getFallbackPresets(tag, query);
-      return NextResponse.json({
-        designs: presets,
-        pagination: {
-          page: 1,
-          totalPages: 1,
-          totalItems: presets.length,
-        },
-      });
+      return buildFallbackResponse(getFallbackPresets(tag, query), page, limit, skip);
     }
 
     // Format tags array before returning
@@ -298,24 +304,18 @@ export async function GET(request: NextRequest) {
       tags: d.tags.map((dt) => dt.tag.name),
     }));
 
+    const totalPages = Math.ceil(totalCount / limit);
     return NextResponse.json({
       designs: formattedDesigns,
       pagination: {
         page,
-        totalPages: Math.ceil(totalCount / limit),
+        totalPages,
         totalItems: totalCount,
+        hasNextPage: page < totalPages,
       },
     });
   } catch (error) {
     console.warn("Database connection issue. Falling back to preset designs in gallery. Error:", error);
-    const presets = getFallbackPresets(tag, query);
-    return NextResponse.json({
-      designs: presets,
-      pagination: {
-        page: 1,
-        totalPages: 1,
-        totalItems: presets.length,
-      },
-    });
+    return buildFallbackResponse(getFallbackPresets(tag, query), page, limit, skip);
   }
 }
