@@ -16,10 +16,10 @@ To enable GitHub login:
    - **Application Name**: `GitGraph Studio`
    - **Homepage URL**: `http://localhost:3000` (local development) or your Azure Web App URL.
    - **Authorization callback URL**: `http://localhost:3000/api/auth/callback/github` (or Azure Web App counterpart).
-3. Generate a Client Secret.
-4. Add these variables to your `.env` configuration file:
-   - `AUTH_GITHUB_ID`
-   - `AUTH_GITHUB_SECRET`
+3. Copy the **Client ID** and generate a **Client Secret**.
+4. Add them to your `.env` configuration file:
+   - `AUTH_GITHUB_ID` = your GitHub **Client ID**
+   - `AUTH_GITHUB_SECRET` = your GitHub **Client Secret**
 
 ---
 
