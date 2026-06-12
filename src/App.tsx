@@ -1024,10 +1024,14 @@ export default function App() {
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'SELECT') {
         return;
       }
-      // Undo command
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+      // Undo / redo commands
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
-        handleUndo();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
       }
       // Redo command
       if ((e.metaKey || e.ctrlKey) && e.key === 'y') {
