@@ -1021,7 +1021,14 @@ export default function App() {
   // Keyboard shortcut config
   useEffect(() => {
     const handleKeys = (e: KeyboardEvent) => {
-      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'SELECT') {
+      const activeElement = document.activeElement;
+      const isTypingTarget =
+        activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'SELECT' ||
+        activeElement?.tagName === 'TEXTAREA' ||
+        activeElement instanceof HTMLElement && activeElement.isContentEditable;
+
+      if (isTypingTarget) {
         return;
       }
       // Undo command
@@ -1033,6 +1040,20 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && e.key === 'y') {
         e.preventDefault();
         handleRedo();
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) {
+        return;
+      }
+      const toolShortcuts: Record<string, { tool: Tool; label: string }> = {
+        d: { tool: 'brush', label: 'Brush tool selected' },
+        e: { tool: 'eraser', label: 'Eraser tool selected' },
+        f: { tool: 'fill', label: 'Flood-Fill tool selected (clicks spill adjacent matching color)' },
+      };
+      const shortcut = toolShortcuts[e.key.toLowerCase()];
+      if (shortcut) {
+        e.preventDefault();
+        setActiveTool(shortcut.tool);
+        triggerToast(shortcut.label, 'info');
       }
     };
     window.addEventListener('keydown', handleKeys);
