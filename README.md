@@ -85,6 +85,7 @@ See a live preview of exactly how your design will look on your actual GitHub pr
 
 ### 💾 Import / Export
 Export your designs as JSON and import them later. Share designs with others effortlessly.
+Try the bundled preset at `public/presets/heart-art.json` for a quick import demo.
 
 ### 🌐 Community Gallery
 Browse, remix, fork, like, and bookmark community-created designs. Get inspired by others.

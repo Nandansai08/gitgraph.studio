@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "version": "1.0",
+  "metadata": {
+    "name": "Heart Art",
+    "description": "A compact heart-shaped contribution graph preset for import demos.",
+    "author": "ketpatil77",
+    "createdAt": "2026-06-13T00:00:00.000Z",
+    "updatedAt": "2026-06-13T00:00:00.000Z"
+  },
+  "startDate": "2026-01-04",
+  "endDate": "2026-02-28",
+  "dimensions": {
+    "weeks": 8,
+    "days": 7
+  },
+  "pixels": [
+    { "w": 1, "d": 0, "level": 2 },
+    { "w": 2, "d": 0, "level": 4 },
+    { "w": 5, "d": 0, "level": 4 },
+    { "w": 6, "d": 0, "level": 2 },
+    { "w": 0, "d": 1, "level": 1 },
+    { "w": 3, "d": 1, "level": 4 },
+    { "w": 4, "d": 1, "level": 4 },
+    { "w": 7, "d": 1, "level": 1 },
+    { "w": 0, "d": 2, "level": 1 },
+    { "w": 1, "d": 2, "level": 3 },
+    { "w": 2, "d": 2, "level": 4 },
+    { "w": 3, "d": 2, "level": 4 },
+    { "w": 4, "d": 2, "level": 4 },
+    { "w": 5, "d": 2, "level": 4 },
+    { "w": 6, "d": 2, "level": 3 },
+    { "w": 7, "d": 2, "level": 1 },
+    { "w": 1, "d": 3, "level": 2 },
+    { "w": 2, "d": 3, "level": 4 },
+    { "w": 3, "d": 3, "level": 4 },
+    { "w": 4, "d": 3, "level": 4 },
+    { "w": 5, "d": 3, "level": 4 },
+    { "w": 6, "d": 3, "level": 2 },
+    { "w": 2, "d": 4, "level": 2 },
+    { "w": 3, "d": 4, "level": 3 },
+    { "w": 4, "d": 4, "level": 3 },
+    { "w": 5, "d": 4, "level": 2 },
+    { "w": 3, "d": 5, "level": 2 },
+    { "w": 4, "d": 5, "level": 2 },
+    { "w": 4, "d": 6, "level": 4 }
+  ]
+}
