@@ -93,3 +93,15 @@ If the application displays startup errors on Azure:
    ```
    *(Azure App Service maps port 80/443 traffic internally to container ports, default is 8080)*.
 2. Check the logs under **Log Stream** or verify the **Application Insights** dashboard.
+
+## 6. Supabase Row Level Security Recommendations
+
+Enable RLS before exposing any production database:
+
+- `users` and `profiles`: enable RLS and restrict writes to the owning user or server-side admin role.
+- `designs`: enable RLS so public designs can be read while private designs stay owner-only.
+- `likes`, `forks`, and `views`: allow inserts only through authenticated sessions or server actions.
+- `comments` and `notifications`: scope access to the owning user and the design being viewed.
+- `session_logs` and audit tables: keep server-only access; do not expose direct client writes.
+
+Practical rule: if a table changes user-owned data or session history, enable RLS and define the policy before shipping.
