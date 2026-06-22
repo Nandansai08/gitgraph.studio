@@ -30,6 +30,14 @@ body:
       placeholder: Provide the text updates or additions here...
     validations:
       required: true
+  - type: textarea
+    id: audience
+    attributes:
+      label: Who would benefit?
+      description: Who runs into this gap — new contributors, self-hosters, designers building a new preset, etc.?
+      placeholder: e.g., New contributors setting up Supabase auth for the first time.
+    validations:
+      required: false
   - type: checkboxes
     id: checklist
     attributes:

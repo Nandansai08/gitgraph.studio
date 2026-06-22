@@ -13,6 +13,7 @@ Create names, logos, symbols, and pixel art for your GitHub activity heatmap usi
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=for-the-badge&logo=prisma)](https://prisma.io)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
+[![Version](https://img.shields.io/github/package-json/v/Nandansai08/gitgraph.studio?style=for-the-badge&color=informational)](package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
 [![CI](https://github.com/Nandansai08/gitgraph.studio/actions/workflows/build.yml/badge.svg)](https://github.com/Nandansai08/gitgraph.studio/actions/workflows/build.yml)
@@ -355,6 +356,7 @@ Please read our **[Contributing Guide](CONTRIBUTING.md)** for details on:
 | [Deployment](docs/deployment.md) | Deploy to Vercel, Azure, or self-host |
 | [Authentication](docs/authentication.md) | OAuth setup for GitHub & Google |
 | [Contributing](docs/contributing.md) | In-depth contributor guide |
+| [Changelog](CHANGELOG.md) | Notable changes between releases |
 
 ---
 
