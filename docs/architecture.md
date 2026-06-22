@@ -62,6 +62,59 @@ The PostgreSQL database consists of several core tables to handle users, profile
 - **`Like`**: Captures user liking activity.
 - **`Comment`**: Threaded comments under community gallery items.
 
+#### Database Relationship Diagram
+
+```mermaid
+erDiagram
+    USER ||--o{ ACCOUNT : authenticates_with
+    USER ||--o{ SESSION : signs_in
+    USER ||--o{ DESIGN : owns
+    USER ||--o{ LIKE : creates
+    USER ||--o{ COMMENT : authors
+    DESIGN ||--o{ LIKE : receives
+    DESIGN ||--o{ COMMENT : receives
+    DESIGN ||--o{ FORK : source_of
+    DESIGN ||--o{ FORK : fork_of
+
+    USER {
+        string id
+        string email
+        string name
+    }
+
+    DESIGN {
+        string id
+        string ownerId
+        string title
+        json data
+        boolean isPublic
+    }
+
+    FORK {
+        string id
+        string originalDesignId
+        string forkedDesignId
+    }
+
+    LIKE {
+        string id
+        string userId
+        string designId
+    }
+
+    COMMENT {
+        string id
+        string userId
+        string designId
+        string parentId
+    }
+```
+
+The diagram focuses on ownership and gallery interactions. Auth.js support tables
+(`Account` and `Session`) are shown only at relationship level so the reader can
+see where identity joins the application domain without overwhelming the main
+design-sharing flow.
+
 ---
 
 ## Data Flows
