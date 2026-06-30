@@ -1,61 +1,101 @@
-# GitGraph Studio: Authentication Documentation
+# GitGraph Studio Authentication
 
-This document describes the authentication system, GitHub OAuth configurations, secure middleware route protection, and session handling.
+GitGraph Studio uses Auth.js v5 with the Prisma adapter. The current app supports GitHub OAuth, Google OAuth, and credentials sign-in for users that already have a stored password hash.
 
-## Overview
+## Auth Providers
 
-Authentication is implemented using **Auth.js (NextAuth v5)** with the **Prisma Adapter** linking logins directly to the PostgreSQL Database. GitHub is configured as the OAuth identity provider.
+Provider setup lives in [`auth.ts`](../auth.ts):
 
----
+| Provider | Auth.js ID | Environment variables | User profile mapping |
+| --- | --- | --- | --- |
+| GitHub | `github` | `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET` | `id`, `name`, `email`, `image`, `username`, `bio` |
+| Google | `google` | `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | `id`, `name`, `email`, `image`, generated `username`, default `bio` |
+| Credentials | `credentials` | none beyond database access | Existing `User` rows with `hashedPassword` |
 
-## 1. OAuth Application Registration
+Auth.js also requires `AUTH_SECRET`. Local development uses `NEXTAUTH_URL=http://localhost:3000`; deployed environments should set `NEXTAUTH_URL` to the public site URL.
 
-To enable GitHub login:
-1. Navigate to GitHub -> Settings -> Developer settings -> OAuth Apps -> **New OAuth App**.
-2. Configure settings:
-   - **Application Name**: `GitGraph Studio`
-   - **Homepage URL**: `http://localhost:3000` (local development) or your Azure Web App URL.
-   - **Authorization callback URL**: `http://localhost:3000/api/auth/callback/github` (or Azure Web App counterpart).
-3. Copy the **Client ID** and generate a **Client Secret**.
-4. Add them to your `.env` configuration file:
-   - `AUTH_GITHUB_ID` = your GitHub **Client ID**
-   - `AUTH_GITHUB_SECRET` = your GitHub **Client Secret**
+## Callback URLs
 
----
+Use these redirect/callback URLs when registering OAuth apps:
 
-## 2. Configuration (`auth.ts`)
+| Provider | Local callback URL | Production callback URL |
+| --- | --- | --- |
+| GitHub | `http://localhost:3000/api/auth/callback/github` | `https://YOUR_DOMAIN/api/auth/callback/github` |
+| Google | `http://localhost:3000/api/auth/callback/google` | `https://YOUR_DOMAIN/api/auth/callback/google` |
 
-The NextAuth initialization is configured inside [auth.ts](file:///c:/Users/nanda/gitgraph.studio/auth.ts). It:
-- Integrates the `PrismaAdapter` with our global `prisma` client.
-- Maps custom fields (like GitHub username handle and bio) from the GitHub OAuth payload into the user session:
-  ```typescript
-  callbacks: {
-    async session({ session, user }) {
-      if (session.user) {
-        session.user.id = user.id;
-        (session.user as any).username = (user as any).username || (user as any).name;
-        (session.user as any).bio = (user as any).bio;
-      }
-      return session;
-    },
-  }
-  ```
+Replace `YOUR_DOMAIN` with the exact deployed host. The scheme and host must match `NEXTAUTH_URL`.
 
----
+## GitHub OAuth Setup
 
-## 3. Middleware Protection (`middleware.ts`)
+1. Open GitHub -> Settings -> Developer settings -> OAuth Apps -> New OAuth App.
+2. Set Application name to `GitGraph Studio` or another clear project name.
+3. Set Homepage URL:
+   - Local: `http://localhost:3000`
+   - Production: `https://YOUR_DOMAIN`
+4. Set Authorization callback URL:
+   - Local: `http://localhost:3000/api/auth/callback/github`
+   - Production: `https://YOUR_DOMAIN/api/auth/callback/github`
+5. Create the app, then generate a client secret.
+6. Copy the Client ID into `AUTH_GITHUB_ID`.
+7. Copy the Client secret into `AUTH_GITHUB_SECRET`.
 
-NextAuth routes checks are performed inside [middleware.ts](file:///c:/Users/nanda/gitgraph.studio/middleware.ts):
-- Matches protected paths: `/editor/*`, `/settings/*`, and `/dashboard/*`.
-- Redirects unauthenticated requests to `/login`.
+GitHub OAuth Apps do not require selecting scopes during app creation. Auth.js requests the default profile and email data needed by the `profile` mapper in `auth.ts`.
 
----
+## Google OAuth Setup
 
-## 4. Frontend Binding
+1. Open Google Cloud Console -> APIs & Services -> Credentials.
+2. Create or select a project for GitGraph Studio.
+3. Configure the OAuth consent screen:
+   - App type: External for public testing, or Internal for a Google Workspace-only app.
+   - App name: `GitGraph Studio`
+   - User support email and developer contact email: your project contact.
+4. Create Credentials -> OAuth client ID -> Web application.
+5. Add Authorized JavaScript origins:
+   - Local: `http://localhost:3000`
+   - Production: `https://YOUR_DOMAIN`
+6. Add Authorized redirect URIs:
+   - Local: `http://localhost:3000/api/auth/callback/google`
+   - Production: `https://YOUR_DOMAIN/api/auth/callback/google`
+7. Copy the Client ID into `AUTH_GOOGLE_ID`.
+8. Copy the Client secret into `AUTH_GOOGLE_SECRET`.
 
-In [src/App.tsx](file:///c:/Users/nanda/gitgraph.studio/src/App.tsx):
-- The `signIn` and `signOut` methods are imported from `next-auth/react`.
-- When the user clicks the "Authorize with GitHub" button, `signIn("github")` is triggered, launching the GitHub OAuth login page.
-- On successful login, Auth.js sets secure, HTTP-only session cookies.
-- The `App` client component receives the session on page load and populates `userSession` state dynamically, keeping user details in sync across all tabs and editor toolbars.
-- To sign out, users click the "Log Out" button on the profile page, which calls `signOut()` to wipe cookie sessions.
+Google sign-in uses the standard OpenID Connect profile claims returned by Auth.js, including subject ID, name, email, and profile image.
+
+## Environment Example
+
+```env
+AUTH_SECRET=""
+NEXTAUTH_URL="http://localhost:3000"
+
+AUTH_GITHUB_ID=""
+AUTH_GITHUB_SECRET=""
+
+AUTH_GOOGLE_ID=""
+AUTH_GOOGLE_SECRET=""
+```
+
+Generate `AUTH_SECRET` with:
+
+```bash
+npx auth secret
+```
+
+## Local Verification
+
+1. Copy `.env.example` to `.env`.
+2. Fill in the database variables, `AUTH_SECRET`, and the OAuth credentials.
+3. Run the app:
+
+```bash
+npm run dev
+```
+
+4. Open `http://localhost:3000/auth`.
+5. Test GitHub sign-in and Google sign-in separately.
+6. Confirm the callback returns to the app without a provider error.
+
+If an OAuth provider returns a redirect mismatch error, compare the provider dashboard callback URL with `NEXTAUTH_URL` and the callback table above.
+
+## Protected Routes
+
+Route protection lives in [`middleware.ts`](../middleware.ts). Keep middleware matchers aligned with auth-gated features such as saving, forking, exporting, gallery publishing, likes, bookmarks, and comments.
